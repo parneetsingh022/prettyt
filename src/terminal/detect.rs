@@ -5,10 +5,10 @@
 //! throughout `prettyt` to render styled output.
 //!
 //! ## Detection order
-//!
+//! 
+//! - **`FORCE_COLOR`** — if set (and not `"0"`), forces true color regardless of other signals.
 //! - **TTY check** — if stdout is piped, color is disabled entirely.
 //! - **`NO_COLOR`** — if set to any value, disables color ([no-color.org](https://no-color.org)).
-//! - **`FORCE_COLOR`** — if set (and not `"0"`), forces true color regardless of other signals.
 //! - **`COLORTERM`** — `"truecolor"` or `"24bit"` advertises full RGB support.
 //! - **`TERM`** — `"dumb"` means no color, `"*256color*"` means 256 colors, else basic 16.
 
@@ -45,22 +45,18 @@ fn detect_color_level_inner(
     term: Option<&str>,
 ) -> ColorLevel {
 
-    if !is_tty {
-        return ColorLevel::None
-    }
-
-    if no_color {
-        return ColorLevel::None
-    }
-
     match force_color {
         Some("0") => return ColorLevel::None,
         Some("1") => return ColorLevel::Basic,
         Some("2") => return ColorLevel::Ansi256,
-        Some("3") => return ColorLevel::TrueColor,
         Some(_) => return ColorLevel::TrueColor,
         None => {}
     }
+
+    if !is_tty || no_color {
+        return ColorLevel::None
+    }
+    
 
     if let Some(ct) = colorterm {
         if ct.contains("truecolor") || ct.contains("24bit") {
@@ -78,7 +74,7 @@ fn detect_color_level_inner(
         }
     }
 
-    // fallback
+    // default fallback for TTYS
     ColorLevel::Basic
 }
 
@@ -89,23 +85,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn returns_none_when_not_tty() {
-        assert_eq!(
-            detect_color_level_inner(true, false, Some("1"), None, None),
-            ColorLevel::Basic
-        );
 
+    fn returns_none_when_not_tty_without_force_color() {
         assert_eq!(
-            detect_color_level_inner(false, false, Some("3"), Some("truecolor"), Some("xterm-256color")),
+            detect_color_level_inner(false, false, None, Some("truecolor"), Some("xterm-256color")),
             ColorLevel::None
         );
     }
 
     #[test]
-    fn no_color_disables_color() {
+    fn no_color_disables_color_without_force_color() {
+        assert_eq!(
+            detect_color_level_inner(true, true, None, Some("truecolor"), Some("xterm-256color")),
+            ColorLevel::None
+        );
+    }
+
+    #[test]
+    fn force_color_overrides_not_tty() {
+        assert_eq!(
+            detect_color_level_inner(false, false, Some("3"), Some("truecolor"), Some("xterm-256color")),
+            ColorLevel::TrueColor
+        );
+    }
+
+    #[test]
+    fn force_color_overrides_no_color() {
         assert_eq!(
             detect_color_level_inner(true, true, Some("3"), Some("truecolor"), Some("xterm-256color")),
-            ColorLevel::None
+            ColorLevel::TrueColor
         );
     }
 
