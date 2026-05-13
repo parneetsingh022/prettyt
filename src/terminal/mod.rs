@@ -1,3 +1,3 @@
 pub mod detect;
 
-pub use detect::{detect_color_level, ColorLevel};
+pub use detect::{ColorLevel, detect_color_level};
