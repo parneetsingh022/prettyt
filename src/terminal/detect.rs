@@ -58,10 +58,9 @@ fn detect_color_level_inner(
         return ColorLevel::None;
     }
 
-    if let Some(ct) = colorterm {
-        if ct.contains("truecolor") || ct.contains("24bit") {
+    if let Some(ct) = colorterm 
+        && (ct.contains("truecolor") || ct.contains("24bit")){
             return ColorLevel::TrueColor;
-        }
     }
 
     if let Some(term) = term {
