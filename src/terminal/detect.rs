@@ -196,4 +196,34 @@ mod tests {
             ColorLevel::Basic
         );
     }
+
+    #[test]
+    fn colorterm_unknown_falls_through_to_term() {
+        assert_eq!(
+            detect_color_level_inner(
+                true,
+                false,
+                None,
+                Some("ansi"),
+                Some("xterm-256color")
+            ),
+            ColorLevel::Ansi256
+        );
+    }
+
+    #[test]
+    fn no_colorterm_no_term_fallback_basic() {
+        assert_eq!(
+            detect_color_level_inner(true, false, None, None, None),
+            ColorLevel::Basic
+        );
+    }
+
+    #[test]
+    fn term_unknown_falls_back_basic() {
+        assert_eq!(
+            detect_color_level_inner(true, false, None, None, Some("vt100")),
+            ColorLevel::Basic
+        );
+    }
 }
