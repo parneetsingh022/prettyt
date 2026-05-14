@@ -1,48 +1,49 @@
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BasicColor {
-    Black,
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    White,
-    BrightBlack,
-    BrightRed,
-    BrightGreen,
-    BrightYellow,
-    BrightBlue,
-    BrightMagenta,
-    BrightCyan,
-    BrightWhite,
+    Black = 0,
+    Red = 1,
+    Green = 2,
+    Yellow = 3,
+    Blue = 4,
+    Magenta = 5,
+    Cyan = 6,
+    White = 7,
+    BrightBlack = 8,
+    BrightRed = 9,
+    BrightGreen = 10,
+    BrightYellow = 11,
+    BrightBlue = 12,
+    BrightMagenta = 13,
+    BrightCyan = 14,
+    BrightWhite = 15,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
     Rgb(u8, u8, u8),
-    Ansi(u8),
-    Basic(BasicColor),
+    Ansi256(u8),
+    Ansi16(BasicColor),
 }
 
 impl Color {
-    pub const BLACK: Color = Color::Basic(BasicColor::Black);
-    pub const RED: Color = Color::Basic(BasicColor::Red);
-    pub const GREEN: Color = Color::Basic(BasicColor::Green);
-    pub const YELLOW: Color = Color::Basic(BasicColor::Yellow);
-    pub const BLUE: Color = Color::Basic(BasicColor::Blue);
-    pub const MAGENTA: Color = Color::Basic(BasicColor::Magenta);
-    pub const CYAN: Color = Color::Basic(BasicColor::Cyan);
-    pub const WHITE: Color = Color::Basic(BasicColor::White);
+    pub const BLACK: Color = Color::Ansi16(BasicColor::Black);
+    pub const RED: Color = Color::Ansi16(BasicColor::Red);
+    pub const GREEN: Color = Color::Ansi16(BasicColor::Green);
+    pub const YELLOW: Color = Color::Ansi16(BasicColor::Yellow);
+    pub const BLUE: Color = Color::Ansi16(BasicColor::Blue);
+    pub const MAGENTA: Color = Color::Ansi16(BasicColor::Magenta);
+    pub const CYAN: Color = Color::Ansi16(BasicColor::Cyan);
+    pub const WHITE: Color = Color::Ansi16(BasicColor::White);
 
-    pub const BRIGHT_BLACK: Color = Color::Basic(BasicColor::BrightBlack);
-    pub const BRIGHT_RED: Color = Color::Basic(BasicColor::BrightRed);
-    pub const BRIGHT_GREEN: Color = Color::Basic(BasicColor::BrightGreen);
-    pub const BRIGHT_YELLOW: Color = Color::Basic(BasicColor::BrightYellow);
-    pub const BRIGHT_BLUE: Color = Color::Basic(BasicColor::BrightBlue);
-    pub const BRIGHT_MAGENTA: Color = Color::Basic(BasicColor::BrightMagenta);
-    pub const BRIGHT_CYAN: Color = Color::Basic(BasicColor::BrightCyan);
-    pub const BRIGHT_WHITE: Color = Color::Basic(BasicColor::BrightWhite);
+    pub const BRIGHT_BLACK: Color = Color::Ansi16(BasicColor::BrightBlack);
+    pub const BRIGHT_RED: Color = Color::Ansi16(BasicColor::BrightRed);
+    pub const BRIGHT_GREEN: Color = Color::Ansi16(BasicColor::BrightGreen);
+    pub const BRIGHT_YELLOW: Color = Color::Ansi16(BasicColor::BrightYellow);
+    pub const BRIGHT_BLUE: Color = Color::Ansi16(BasicColor::BrightBlue);
+    pub const BRIGHT_MAGENTA: Color = Color::Ansi16(BasicColor::BrightMagenta);
+    pub const BRIGHT_CYAN: Color = Color::Ansi16(BasicColor::BrightCyan);
+    pub const BRIGHT_WHITE: Color = Color::Ansi16(BasicColor::BrightWhite);
 }
 
 pub(crate) fn ansi16_to_basic(n: u8) -> BasicColor {
@@ -146,11 +147,26 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
 }
 
 pub(crate) fn to_ansi_string(color: Color, background: bool) -> String {
+    let code = if background { 48 } else { 38 };
+
     match color {
         Color::Rgb(r, g, b) => {
-            let code = if background { 48 } else { 38 };
             format!("\x1b[{};2;{};{};{}m", code, r, g, b)
         }
-        _ => unimplemented!(),
+        Color::Ansi256(v) => {
+            format!("\x1b[{};5;{}m", code, v)
+        }
+        Color::Ansi16(c) => {
+            let n = c as u8;
+
+            let code = match (background, n >= 8) {
+                (false, false) => 30 + n,
+                (false, true) => 90 + (n - 8),
+                (true, false) => 40 + n,
+                (true, true) => 100 + (n - 8),
+            };
+
+            format!("\x1b[{}m", code)
+        }
     }
 }

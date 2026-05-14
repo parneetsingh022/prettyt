@@ -3,7 +3,7 @@ use prettyt::style::{Color, Style};
 fn main() {
     let style = Style::new()
         .fg(Color::Rgb(58, 117, 189))
-        .bg(Color::Rgb(245, 73, 39));
+        .bg(Color::BRIGHT_RED);
 
     println!("{}", style.apply("HELLO WORLD"));
 
