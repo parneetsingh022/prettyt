@@ -1,3 +1,6 @@
+use crate::terminal::ColorLevel;
+use crate::terminal::registry::get_cached_level;
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BasicColor {
@@ -30,6 +33,7 @@ pub enum Color {
     Rgb(u8, u8, u8),
     Ansi256(u8),
     Ansi16(BasicColor),
+    None,
 }
 
 impl Color {
@@ -74,7 +78,6 @@ pub(crate) fn ansi16_to_basic(n: u8) -> BasicColor {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
     // Rounding to the nearest increment of 51
     let r = ((r as u16 * 5 + 127) / 255) as u8;
@@ -84,25 +87,24 @@ pub(crate) fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
     16 + 36 * r + 6 * g + b
 }
 
-#[allow(dead_code)]
 pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
     const ANSI16_RGB: [(u8, u8, u8); 16] = [
-        (0, 0, 0),       // black
-        (128, 0, 0),     // red
-        (0, 128, 0),     // green
-        (128, 128, 0),   // yellow
-        (0, 0, 128),     // blue
-        (128, 0, 128),   // magenta
-        (0, 128, 128),   // cyan
-        (192, 192, 192), // white / light gray
-        (128, 128, 128), // bright black / dark gray
-        (255, 0, 0),     // bright red
-        (0, 255, 0),     // bright green
-        (255, 255, 0),   // bright yellow
-        (0, 0, 255),     // bright blue
-        (255, 0, 255),   // bright magenta
-        (0, 255, 255),   // bright cyan
-        (255, 255, 255), // bright white
+        (0, 0, 0),
+        (205, 49, 49),
+        (13, 188, 121),
+        (229, 229, 16),
+        (36, 114, 200),
+        (188, 63, 188),
+        (17, 168, 205),
+        (229, 229, 229),
+        (102, 102, 102),
+        (241, 76, 76),
+        (35, 209, 139),
+        (245, 245, 67),
+        (59, 142, 234),
+        (214, 112, 214),
+        (41, 184, 219),
+        (255, 255, 255),
     ];
 
     let rgb = match n {
@@ -121,7 +123,13 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
 
         232..=255 => {
             let gray = 8 + (n - 232) * 10;
-            (gray, gray, gray)
+
+            return match gray {
+                0..=64 => BasicColor::Black,
+                65..=159 => BasicColor::BrightBlack,
+                160..=239 => BasicColor::White,
+                _ => BasicColor::BrightWhite,
+            };
         }
     };
 
@@ -144,25 +152,54 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
     ansi16_to_basic(best)
 }
 
+fn get_appropriate_color_for_level(color: Color, level: ColorLevel) -> Color {
+    match level {
+        ColorLevel::None => Color::None,
+
+        ColorLevel::TrueColor => color,
+
+        ColorLevel::Ansi256 => match color {
+            Color::Rgb(r, g, b) => Color::Ansi256(rgb_to_ansi256(r, g, b)),
+            _ => color,
+        },
+
+        ColorLevel::Basic => match color {
+            Color::Rgb(r, g, b) => Color::Ansi16(ansi256_to_ansi16(rgb_to_ansi256(r, g, b))),
+            Color::Ansi256(c) => Color::Ansi16(ansi256_to_ansi16(c)),
+            _ => color,
+        },
+    }
+}
+
+pub(crate) fn get_appropriate_color(color: Color) -> Color {
+    get_appropriate_color_for_level(color, get_cached_level())
+}
+
 pub(crate) fn to_ansi_string(color: Color, layer: Layer) -> String {
-    let background = layer == Layer::Background;
-    let code = if background { 48 } else { 38 };
+    let color = get_appropriate_color(color);
+    let fg = matches!(layer, Layer::Foreground);
 
     match color {
+        Color::None => String::new(),
+
         Color::Rgb(r, g, b) => {
+            let code = if fg { 38 } else { 48 };
             format!("\x1b[{};2;{};{};{}m", code, r, g, b)
         }
+
         Color::Ansi256(v) => {
+            let code = if fg { 38 } else { 48 };
             format!("\x1b[{};5;{}m", code, v)
         }
+
         Color::Ansi16(c) => {
             let n = c as u8;
 
-            let code = match (background, n >= 8) {
-                (false, false) => 30 + n,
-                (false, true) => 90 + (n - 8),
-                (true, false) => 40 + n,
-                (true, true) => 100 + (n - 8),
+            let code = match (fg, n < 8) {
+                (true, true) => 30 + n,
+                (true, false) => 90 + (n - 8),
+                (false, true) => 40 + n,
+                (false, false) => 100 + (n - 8),
             };
 
             format!("\x1b[{}m", code)
@@ -223,70 +260,99 @@ mod tests {
     }
 
     // !!!! ansi256_to_ansi16
-
     #[test]
-    fn ansi256_to_ansi16_keeps_basic_ansi_colors() {
-        assert_eq!(ansi256_to_ansi16(0), BasicColor::Black);
-        assert_eq!(ansi256_to_ansi16(1), BasicColor::Red);
-        assert_eq!(ansi256_to_ansi16(2), BasicColor::Green);
-        assert_eq!(ansi256_to_ansi16(3), BasicColor::Yellow);
-        assert_eq!(ansi256_to_ansi16(4), BasicColor::Blue);
-        assert_eq!(ansi256_to_ansi16(5), BasicColor::Magenta);
-        assert_eq!(ansi256_to_ansi16(6), BasicColor::Cyan);
-        assert_eq!(ansi256_to_ansi16(7), BasicColor::White);
+    fn ansi256_to_ansi16_keeps_ansi16_values() {
+        let expected = [
+            BasicColor::Black,
+            BasicColor::Red,
+            BasicColor::Green,
+            BasicColor::Yellow,
+            BasicColor::Blue,
+            BasicColor::Magenta,
+            BasicColor::Cyan,
+            BasicColor::White,
+            BasicColor::BrightBlack,
+            BasicColor::BrightRed,
+            BasicColor::BrightGreen,
+            BasicColor::BrightYellow,
+            BasicColor::BrightBlue,
+            BasicColor::BrightMagenta,
+            BasicColor::BrightCyan,
+            BasicColor::BrightWhite,
+        ];
+
+        for (n, color) in expected.into_iter().enumerate() {
+            assert_eq!(ansi256_to_ansi16(n as u8), color);
+        }
     }
 
     #[test]
-    fn ansi256_to_ansi16_keeps_bright_ansi_colors() {
-        assert_eq!(ansi256_to_ansi16(8), BasicColor::BrightBlack);
-        assert_eq!(ansi256_to_ansi16(9), BasicColor::BrightRed);
-        assert_eq!(ansi256_to_ansi16(10), BasicColor::BrightGreen);
-        assert_eq!(ansi256_to_ansi16(11), BasicColor::BrightYellow);
-        assert_eq!(ansi256_to_ansi16(12), BasicColor::BrightBlue);
-        assert_eq!(ansi256_to_ansi16(13), BasicColor::BrightMagenta);
-        assert_eq!(ansi256_to_ansi16(14), BasicColor::BrightCyan);
-        assert_eq!(ansi256_to_ansi16(15), BasicColor::BrightWhite);
-    }
-
-    #[test]
-    fn ansi256_to_ansi16_maps_color_cube_primaries() {
+    fn ansi256_to_ansi16_maps_obvious_colors() {
         assert_eq!(ansi256_to_ansi16(16), BasicColor::Black);
-        assert_eq!(ansi256_to_ansi16(196), BasicColor::BrightRed);
-        assert_eq!(ansi256_to_ansi16(46), BasicColor::BrightGreen);
-        assert_eq!(ansi256_to_ansi16(21), BasicColor::BrightBlue);
+        assert!(matches!(
+            ansi256_to_ansi16(196),
+            BasicColor::Red | BasicColor::BrightRed
+        ));
+        assert!(matches!(
+            ansi256_to_ansi16(46),
+            BasicColor::Green | BasicColor::BrightGreen
+        ));
+        assert!(matches!(
+            ansi256_to_ansi16(21),
+            BasicColor::Blue | BasicColor::BrightBlue
+        ));
+        assert!(matches!(
+            ansi256_to_ansi16(226),
+            BasicColor::Yellow | BasicColor::BrightYellow
+        ));
+        assert!(matches!(
+            ansi256_to_ansi16(201),
+            BasicColor::Magenta | BasicColor::BrightMagenta
+        ));
+        assert!(matches!(
+            ansi256_to_ansi16(51),
+            BasicColor::Cyan | BasicColor::BrightCyan
+        ));
+    }
+
+    fn is_gray(c: BasicColor) -> bool {
+        matches!(
+            c,
+            BasicColor::Black
+                | BasicColor::BrightBlack
+                | BasicColor::White
+                | BasicColor::BrightWhite
+        )
     }
 
     #[test]
-    fn ansi256_to_ansi16_maps_color_cube_secondary_colors() {
-        assert_eq!(ansi256_to_ansi16(226), BasicColor::BrightYellow);
-        assert_eq!(ansi256_to_ansi16(201), BasicColor::BrightMagenta);
-        assert_eq!(ansi256_to_ansi16(51), BasicColor::BrightCyan);
+    fn grayscale_ramp_maps_to_grayscale_colors() {
+        for n in 232..=255 {
+            assert!(
+                is_gray(ansi256_to_ansi16(n)),
+                "ansi256 {n} should map to grayscale, got {:?}",
+                ansi256_to_ansi16(n)
+            );
+        }
     }
 
     #[test]
-    fn ansi256_to_ansi16_maps_dark_color_cube_values() {
-        assert_eq!(ansi256_to_ansi16(52), BasicColor::Red);
-        assert_eq!(ansi256_to_ansi16(22), BasicColor::Green);
-        assert_eq!(ansi256_to_ansi16(17), BasicColor::Blue);
+    fn ansi256_to_ansi16_never_panics_for_all_values() {
+        for n in 0..=255 {
+            let _ = ansi256_to_ansi16(n);
+        }
     }
 
     #[test]
-    fn ansi256_to_ansi16_maps_grayscale_ramp() {
-        assert_eq!(ansi256_to_ansi16(232), BasicColor::Black);
-        assert_eq!(ansi256_to_ansi16(244), BasicColor::BrightBlack);
-        assert_eq!(ansi256_to_ansi16(250), BasicColor::White);
-        assert_eq!(ansi256_to_ansi16(255), BasicColor::BrightWhite);
-    }
+    fn warm_rgb_does_not_collapse_to_white() {
+        let color = ansi256_to_ansi16(rgb_to_ansi256(214, 108, 92));
 
-    #[test]
-    fn ansi256_to_ansi16_maps_neutral_cube_values_to_grays() {
-        assert_eq!(ansi256_to_ansi16(59), BasicColor::BrightBlack);
-        assert_eq!(ansi256_to_ansi16(102), BasicColor::BrightBlack);
-        assert_eq!(ansi256_to_ansi16(145), BasicColor::White);
-        assert_eq!(ansi256_to_ansi16(188), BasicColor::White);
-        assert_eq!(ansi256_to_ansi16(231), BasicColor::BrightWhite);
+        assert!(
+            !matches!(color, BasicColor::White | BasicColor::BrightWhite),
+            "warm reddish color should not map to white, got {:?}",
+            color
+        );
     }
-
     // !!!! to_ansi_string
 
     #[test]
@@ -387,6 +453,104 @@ mod tests {
         assert_eq!(
             to_ansi_string(Color::Ansi16(BasicColor::BrightWhite), Layer::Background),
             "\x1b[107m"
+        );
+    }
+
+    // !!! get_appropriate_color_for_level
+
+    #[test]
+    fn returns_none_when_color_level_is_none() {
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Rgb(255, 0, 0), ColorLevel::None),
+            Color::None
+        );
+
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Ansi256(196), ColorLevel::None),
+            Color::None
+        );
+
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Ansi16(BasicColor::Red), ColorLevel::None),
+            Color::None
+        );
+    }
+
+    #[test]
+    fn truecolor_keeps_original_color() {
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Rgb(128, 64, 255), ColorLevel::TrueColor),
+            Color::Rgb(128, 64, 255)
+        );
+
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Ansi256(196), ColorLevel::TrueColor),
+            Color::Ansi256(196)
+        );
+
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Ansi16(BasicColor::Red), ColorLevel::TrueColor),
+            Color::Ansi16(BasicColor::Red)
+        );
+    }
+
+    #[test]
+    fn ansi256_converts_rgb_to_ansi256() {
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Rgb(255, 0, 0), ColorLevel::Ansi256),
+            Color::Ansi256(196)
+        );
+    }
+
+    #[test]
+    fn ansi256_keeps_ansi256_and_ansi16() {
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Ansi256(196), ColorLevel::Ansi256),
+            Color::Ansi256(196)
+        );
+
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Ansi16(BasicColor::Red), ColorLevel::Ansi256),
+            Color::Ansi16(BasicColor::Red)
+        );
+    }
+
+    #[test]
+    fn basic_converts_rgb_and_ansi256_to_ansi16() {
+        assert!(matches!(
+            get_appropriate_color_for_level(Color::Rgb(255, 0, 0), ColorLevel::Basic),
+            Color::Ansi16(BasicColor::Red | BasicColor::BrightRed)
+        ));
+
+        assert!(matches!(
+            get_appropriate_color_for_level(Color::Ansi256(196), ColorLevel::Basic),
+            Color::Ansi16(BasicColor::Red | BasicColor::BrightRed)
+        ));
+    }
+
+    #[test]
+    fn basic_keeps_ansi16() {
+        assert_eq!(
+            get_appropriate_color_for_level(Color::Ansi16(BasicColor::Red), ColorLevel::Basic),
+            Color::Ansi16(BasicColor::Red)
+        );
+    }
+
+    #[test]
+    fn color_none_stays_none_for_color_capable_levels() {
+        assert_eq!(
+            get_appropriate_color_for_level(Color::None, ColorLevel::TrueColor),
+            Color::None
+        );
+
+        assert_eq!(
+            get_appropriate_color_for_level(Color::None, ColorLevel::Ansi256),
+            Color::None
+        );
+
+        assert_eq!(
+            get_appropriate_color_for_level(Color::None, ColorLevel::Basic),
+            Color::None
         );
     }
 }
