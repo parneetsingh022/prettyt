@@ -25,6 +25,26 @@ pub enum Color {
     Basic(BasicColor),
 }
 
+impl Color {
+    pub const BLACK: Color = Color::Basic(BasicColor::Black);
+    pub const RED: Color = Color::Basic(BasicColor::Red);
+    pub const GREEN: Color = Color::Basic(BasicColor::Green);
+    pub const YELLOW: Color = Color::Basic(BasicColor::Yellow);
+    pub const BLUE: Color = Color::Basic(BasicColor::Blue);
+    pub const MAGENTA: Color = Color::Basic(BasicColor::Magenta);
+    pub const CYAN: Color = Color::Basic(BasicColor::Cyan);
+    pub const WHITE: Color = Color::Basic(BasicColor::White);
+
+    pub const BRIGHT_BLACK: Color = Color::Basic(BasicColor::BrightBlack);
+    pub const BRIGHT_RED: Color = Color::Basic(BasicColor::BrightRed);
+    pub const BRIGHT_GREEN: Color = Color::Basic(BasicColor::BrightGreen);
+    pub const BRIGHT_YELLOW: Color = Color::Basic(BasicColor::BrightYellow);
+    pub const BRIGHT_BLUE: Color = Color::Basic(BasicColor::BrightBlue);
+    pub const BRIGHT_MAGENTA: Color = Color::Basic(BasicColor::BrightMagenta);
+    pub const BRIGHT_CYAN: Color = Color::Basic(BasicColor::BrightCyan);
+    pub const BRIGHT_WHITE: Color = Color::Basic(BasicColor::BrightWhite);
+}
+
 pub(crate) fn ansi16_to_basic(n: u8) -> BasicColor {
     match n {
         0 => BasicColor::Black,
