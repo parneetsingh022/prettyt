@@ -1,7 +1,7 @@
 pub mod color;
 pub use self::color::Color;
 
-use self::color::to_ansi_string;
+use self::color::{Layer, to_ansi_string};
 
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct Style {
@@ -31,11 +31,11 @@ impl Style {
         let mut prefix = String::new();
 
         if let Some(color) = self.fg {
-            prefix.push_str(&to_ansi_string(color, false));
+            prefix.push_str(&to_ansi_string(color, Layer::Foreground));
         }
 
         if let Some(color) = self.bg {
-            prefix.push_str(&to_ansi_string(color, true));
+            prefix.push_str(&to_ansi_string(color, Layer::Background));
         }
 
         if prefix.is_empty() {
