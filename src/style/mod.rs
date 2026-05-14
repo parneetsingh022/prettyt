@@ -1,6 +1,4 @@
 pub mod color;
-pub mod registry;
-
 pub use self::color::Color;
 
 use self::color::to_ansi_string;
