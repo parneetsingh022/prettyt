@@ -69,9 +69,10 @@ pub(crate) fn ansi16_to_basic(n: u8) -> BasicColor {
 
 #[allow(dead_code)]
 pub(crate) fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
-    let r: u8 = r / 51;
-    let g = g / 51;
-    let b = b / 51;
+    // Rounding to the nearest increment of 51
+    let r = (r as u16 * 5 / 255) as u8;
+    let g = (g as u16 * 5 / 255) as u8;
+    let b = (b as u16 * 5 / 255) as u8;
 
     16 + 36 * r + 6 * g + b
 }
