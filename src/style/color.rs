@@ -1,17 +1,3 @@
-use std::sync::OnceLock;
-
-use crate::terminal::{ColorLevel, detect_color_level};
-
-static COLOR_SUPPORT: OnceLock<ColorLevel> = OnceLock::new();
-
-/// Returns the detected terminal color support level, caching it after the first call.
-///
-/// Uses a thread-safe, lazy initialization to check environment variables and TTY status
-/// once per program execution.
-pub fn get_cached_level() -> ColorLevel {
-    *COLOR_SUPPORT.get_or_init(detect_color_level)
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BasicColor {
     Black,
@@ -39,7 +25,7 @@ pub enum Color {
     Basic(BasicColor),
 }
 
-pub fn ansi16_to_basic(n: u8) -> BasicColor {
+pub(crate) fn ansi16_to_basic(n: u8) -> BasicColor {
     match n {
         0 => BasicColor::Black,
         1 => BasicColor::Red,
@@ -62,7 +48,7 @@ pub fn ansi16_to_basic(n: u8) -> BasicColor {
 }
 
 #[allow(dead_code)]
-fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
+pub(crate) fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
     let r: u8 = r / 51;
     let g = g / 51;
     let b = b / 51;
@@ -71,7 +57,7 @@ fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
 }
 
 #[allow(dead_code)]
-fn ansi256_to_ansi16(n: u8) -> BasicColor {
+pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
     let idx: u8 = match n {
         0..=15 => n,
 
@@ -138,55 +124,12 @@ fn ansi256_to_ansi16(n: u8) -> BasicColor {
     ansi16_to_basic(idx)
 }
 
-fn to_ansi_string(color: Color, background: bool) -> String {
+pub(crate) fn to_ansi_string(color: Color, background: bool) -> String {
     match color {
         Color::Rgb(r, g, b) => {
             let code = if background { 48 } else { 38 };
             format!("\x1b[{};2;{};{};{}m", code, r, g, b)
         }
         _ => unimplemented!(),
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Default)]
-pub struct Style {
-    pub fg: Option<Color>,
-    pub bg: Option<Color>,
-    pub bold: bool,
-}
-
-impl Style {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn fg(mut self, color: Color) -> Self {
-        self.fg = Some(color);
-
-        self
-    }
-
-    pub fn bg(mut self, color: Color) -> Self {
-        self.bg = Some(color);
-
-        self
-    }
-
-    pub fn apply(&self, value: impl std::fmt::Display) -> String {
-        let mut prefix = String::new();
-
-        if let Some(color) = self.fg {
-            prefix.push_str(&to_ansi_string(color, false));
-        }
-
-        if let Some(color) = self.bg {
-            prefix.push_str(&to_ansi_string(color, true));
-        }
-
-        if prefix.is_empty() {
-            value.to_string()
-        } else {
-            format!("{}{}\x1b[0m", prefix, value)
-        }
     }
 }
