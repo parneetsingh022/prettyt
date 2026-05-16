@@ -3,7 +3,7 @@ pub use self::color::Color;
 
 use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
 
-#[derive(Debug, PartialEq, Eq, Default, Clone)]
+#[derive(Debug, PartialEq, Eq, Default, Copy, Clone)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
