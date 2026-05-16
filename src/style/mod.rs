@@ -45,3 +45,106 @@ impl Style {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_returns_default_style() {
+        assert_eq!(
+            Style::new(),
+            Style {
+                fg: None,
+                bg: None,
+                bold: false,
+            }
+        );
+    }
+
+    #[test]
+    fn fg_sets_foreground_color() {
+        let style = Style::new().fg(Color::RED);
+
+        assert_eq!(style.fg, Some(Color::RED));
+        assert_eq!(style.bg, None);
+        assert!(!style.bold);
+    }
+
+    #[test]
+    fn bg_sets_background_color() {
+        let style = Style::new().bg(Color::BLUE);
+
+        assert_eq!(style.fg, None);
+        assert_eq!(style.bg, Some(Color::BLUE));
+        assert!(!style.bold);
+    }
+
+    #[test]
+    fn fg_and_bg_can_be_chained() {
+        let style = Style::new().fg(Color::RED).bg(Color::BLUE);
+
+        assert_eq!(style.fg, Some(Color::RED));
+        assert_eq!(style.bg, Some(Color::BLUE));
+    }
+
+    #[test]
+    fn apply_without_style_returns_plain_text() {
+        let style = Style::new();
+
+        assert_eq!(style.apply("hello"), "hello");
+    }
+
+    #[test]
+    fn apply_with_foreground_wraps_text_with_ansi_reset() {
+        let style = Style::new().fg(Color::RED);
+
+        assert_eq!(
+            style.apply("hello"),
+            format!(
+                "{}hello\x1b[0m",
+                to_ansi_string(Color::RED, Layer::Foreground)
+            )
+        );
+    }
+
+    #[test]
+    fn apply_with_background_wraps_text_with_ansi_reset() {
+        let style = Style::new().bg(Color::BLUE);
+
+        assert_eq!(
+            style.apply("hello"),
+            format!(
+                "{}hello\x1b[0m",
+                to_ansi_string(Color::BLUE, Layer::Background)
+            )
+        );
+    }
+
+    #[test]
+    fn apply_with_foreground_and_background_orders_fg_before_bg() {
+        let style = Style::new().fg(Color::RED).bg(Color::BLUE);
+
+        assert_eq!(
+            style.apply("hello"),
+            format!(
+                "{}{}hello\x1b[0m",
+                to_ansi_string(Color::RED, Layer::Foreground),
+                to_ansi_string(Color::BLUE, Layer::Background),
+            )
+        );
+    }
+
+    #[test]
+    fn apply_accepts_any_display_value() {
+        let style = Style::new().fg(Color::GREEN);
+
+        assert_eq!(
+            style.apply(42),
+            format!(
+                "{}42\x1b[0m",
+                to_ansi_string(Color::GREEN, Layer::Foreground)
+            )
+        );
+    }
+}
