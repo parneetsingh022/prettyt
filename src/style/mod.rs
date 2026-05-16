@@ -39,7 +39,9 @@ impl Style {
     }
 
     pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, detect_color: bool) -> String {
-        if detect_color && get_cached_level() == ColorLevel::None {
+        let has_styles = self.fg.is_some() || self.bg.is_some() || self.bold;
+
+        if !has_styles || detect_color && get_cached_level() == ColorLevel::None {
             return value.to_string();
         }
 
