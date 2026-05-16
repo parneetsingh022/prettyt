@@ -6,14 +6,14 @@ use crate::terminal::{ColorLevel, get_cached_level};
 
 #[derive(Debug, PartialEq, Eq, Default, Copy, Clone)]
 pub struct Style {
-    pub fg: Option<Color>,
-    pub bg: Option<Color>,
-    pub bold: bool,
-    pub underline: bool,
-    pub italic: bool,
-    pub strikethrough: bool,
-    pub dim: bool,
-    pub invert: bool,
+    fg: Option<Color>,
+    bg: Option<Color>,
+    bold: bool,
+    underline: bool,
+    italic: bool,
+    strikethrough: bool,
+    dim: bool,
+    invert: bool,
 }
 
 impl Style {
