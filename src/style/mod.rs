@@ -9,6 +9,11 @@ pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
     pub bold: bool,
+    pub underline: bool,
+    pub italic: bool,
+    pub strikethrough: bool,
+    pub dim: bool,
+    pub invert: bool,
 }
 
 impl Style {
@@ -34,12 +39,44 @@ impl Style {
         self
     }
 
+    pub fn underline(mut self) -> Self {
+        self.underline = true;
+        self
+    }
+
+    pub fn italic(mut self) -> Self {
+        self.italic = true;
+        self
+    }
+
+    pub fn strikethrough(mut self) -> Self {
+        self.strikethrough = true;
+        self
+    }
+
+    pub fn dim(mut self) -> Self {
+        self.dim = true;
+        self
+    }
+
+    pub fn invert(mut self) -> Self {
+        self.invert = true;
+        self
+    }
+
     pub fn apply(&self, value: impl std::fmt::Display) -> String {
         self.apply_inner(value, true)
     }
 
     pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, detect_color: bool) -> String {
-        let has_styles = self.fg.is_some() || self.bg.is_some() || self.bold;
+        let has_styles = self.fg.is_some()
+            || self.bg.is_some()
+            || self.bold
+            || self.underline
+            || self.italic
+            || self.strikethrough
+            || self.dim
+            || self.invert;
 
         if !has_styles || detect_color && get_cached_level() == ColorLevel::None {
             return value.to_string();
@@ -67,6 +104,22 @@ impl Style {
             prefix.push_str("\x1b[1m");
         }
 
+        if self.dim {
+            prefix.push_str("\x1b[2m");
+        }
+        if self.italic {
+            prefix.push_str("\x1b[3m");
+        }
+        if self.underline {
+            prefix.push_str("\x1b[4m");
+        }
+        if self.invert {
+            prefix.push_str("\x1b[7m");
+        }
+        if self.strikethrough {
+            prefix.push_str("\x1b[9m");
+        }
+
         if prefix.is_empty() {
             value.to_string()
         } else {
@@ -87,6 +140,11 @@ mod tests {
                 fg: None,
                 bg: None,
                 bold: false,
+                underline: false,
+                italic: false,
+                strikethrough: false,
+                dim: false,
+                invert: false
             }
         );
     }
@@ -210,6 +268,78 @@ mod tests {
             style.apply_inner("hello", false),
             format!(
                 "{}{}\x1b[1mhello\x1b[0m",
+                to_ansi_string_inner(Color::RED, Layer::Foreground),
+                to_ansi_string_inner(Color::BLUE, Layer::Background),
+            )
+        );
+    }
+
+    #[test]
+    fn underline_sets_underline_to_true() {
+        let style = Style::new().underline();
+
+        assert!(style.underline);
+    }
+
+    #[test]
+    fn italic_sets_italic_to_true() {
+        let style = Style::new().italic();
+
+        assert!(style.italic);
+    }
+
+    #[test]
+    fn strikethrough_sets_strikethrough_to_true() {
+        let style = Style::new().strikethrough();
+
+        assert!(style.strikethrough);
+    }
+
+    #[test]
+    fn dim_sets_dim_to_true() {
+        let style = Style::new().dim();
+
+        assert!(style.dim);
+    }
+
+    #[test]
+    fn invert_sets_invert_to_true() {
+        let style = Style::new().invert();
+
+        assert!(style.invert);
+    }
+
+    #[test]
+    fn apply_with_text_styles_wraps_text_with_ansi_and_reset() {
+        let style = Style::new()
+            .dim()
+            .italic()
+            .underline()
+            .invert()
+            .strikethrough();
+
+        assert_eq!(
+            style.apply_inner("hello", false),
+            "\x1b[2m\x1b[3m\x1b[4m\x1b[7m\x1b[9mhello\x1b[0m"
+        );
+    }
+
+    #[test]
+    fn all_styles_can_be_chained_with_fg_and_bg() {
+        let style = Style::new()
+            .fg(Color::RED)
+            .bg(Color::BLUE)
+            .bold()
+            .dim()
+            .italic()
+            .underline()
+            .invert()
+            .strikethrough();
+
+        assert_eq!(
+            style.apply_inner("hello", false),
+            format!(
+                "{}{}\x1b[1m\x1b[2m\x1b[3m\x1b[4m\x1b[7m\x1b[9mhello\x1b[0m",
                 to_ansi_string_inner(Color::RED, Layer::Foreground),
                 to_ansi_string_inner(Color::BLUE, Layer::Background),
             )
