@@ -1,7 +1,7 @@
 pub mod color;
 pub use self::color::Color;
 
-use self::color::{Layer, to_ansi_string};
+use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
 
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct Style {
@@ -28,14 +28,26 @@ impl Style {
     }
 
     pub fn apply(&self, value: impl std::fmt::Display) -> String {
+        self.apply_inner(value, true)
+    }
+
+    pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, rollback: bool) -> String {
         let mut prefix = String::new();
 
+        // Github tests do not have terminal/environment detection available, so use the
+        // inner ANSI formatter directly instead of the environment-aware wrapper.
+        let ansi_fn = if rollback {
+            to_ansi_string
+        } else {
+            to_ansi_string_inner
+        };
+
         if let Some(color) = self.fg {
-            prefix.push_str(&to_ansi_string(color, Layer::Foreground));
+            prefix.push_str(&ansi_fn(color, Layer::Foreground));
         }
 
         if let Some(color) = self.bg {
-            prefix.push_str(&to_ansi_string(color, Layer::Background));
+            prefix.push_str(&ansi_fn(color, Layer::Background));
         }
 
         if prefix.is_empty() {
@@ -48,7 +60,6 @@ impl Style {
 
 #[cfg(test)]
 mod tests {
-    use self::color::to_ansi_string_inner;
     use super::*;
 
     #[test]
@@ -93,7 +104,7 @@ mod tests {
     fn apply_without_style_returns_plain_text() {
         let style = Style::new();
 
-        assert_eq!(style.apply("hello"), "hello");
+        assert_eq!(style.apply_inner("hello", false), "hello");
     }
 
     #[test]
@@ -101,7 +112,7 @@ mod tests {
         let style = Style::new().fg(Color::RED);
 
         assert_eq!(
-            style.apply("hello"),
+            style.apply_inner("hello", false),
             format!(
                 "{}hello\x1b[0m",
                 to_ansi_string_inner(Color::RED, Layer::Foreground)
@@ -114,7 +125,7 @@ mod tests {
         let style = Style::new().bg(Color::BLUE);
 
         assert_eq!(
-            style.apply("hello"),
+            style.apply_inner("hello", false),
             format!(
                 "{}hello\x1b[0m",
                 to_ansi_string_inner(Color::BLUE, Layer::Background)
@@ -127,7 +138,7 @@ mod tests {
         let style = Style::new().fg(Color::RED).bg(Color::BLUE);
 
         assert_eq!(
-            style.apply("hello"),
+            style.apply_inner("hello", false),
             format!(
                 "{}{}hello\x1b[0m",
                 to_ansi_string_inner(Color::RED, Layer::Foreground),
@@ -141,7 +152,7 @@ mod tests {
         let style = Style::new().fg(Color::GREEN);
 
         assert_eq!(
-            style.apply(42),
+            style.apply_inner(42, false),
             format!(
                 "{}42\x1b[0m",
                 to_ansi_string_inner(Color::GREEN, Layer::Foreground)
