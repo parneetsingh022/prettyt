@@ -2,6 +2,7 @@ pub mod color;
 pub use self::color::Color;
 
 use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
+use crate::terminal::{ColorLevel, get_cached_level};
 
 #[derive(Debug, PartialEq, Eq, Default, Copy, Clone)]
 pub struct Style {
@@ -38,6 +39,10 @@ impl Style {
     }
 
     pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, detect_color: bool) -> String {
+        if detect_color && get_cached_level() == ColorLevel::None {
+            return value.to_string();
+        }
+
         let mut prefix = String::new();
 
         // GitHub tests do not have terminal/environment detection available, so use the
@@ -197,6 +202,20 @@ mod tests {
 
     #[test]
     fn apply_with_foreground_background_and_bold_orders_bold_after_colors() {
+        let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
+
+        assert_eq!(
+            style.apply_inner("hello", false),
+            format!(
+                "{}{}\x1b[1mhello\x1b[0m",
+                to_ansi_string_inner(Color::RED, Layer::Foreground),
+                to_ansi_string_inner(Color::BLUE, Layer::Background),
+            )
+        );
+    }
+
+    #[test]
+    fn apply_with_colors_and_bold_when_detection_is_disabled() {
         let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
 
         assert_eq!(
