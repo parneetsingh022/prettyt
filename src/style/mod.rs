@@ -31,12 +31,12 @@ impl Style {
         self.apply_inner(value, true)
     }
 
-    pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, rollback: bool) -> String {
+    pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, detect_color: bool) -> String {
         let mut prefix = String::new();
 
-        // Github tests do not have terminal/environment detection available, so use the
+        // GitHub tests do not have terminal/environment detection available, so use the
         // inner ANSI formatter directly instead of the environment-aware wrapper.
-        let ansi_fn = if rollback {
+        let ansi_fn = if detect_color {
             to_ansi_string
         } else {
             to_ansi_string_inner
