@@ -3,7 +3,7 @@ pub use self::color::Color;
 
 use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
 
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
@@ -23,6 +23,12 @@ impl Style {
 
     pub fn bg(mut self, color: Color) -> Self {
         self.bg = Some(color);
+
+        self
+    }
+
+    pub fn bold(mut self) -> Self {
+        self.bold = true;
 
         self
     }
@@ -48,6 +54,10 @@ impl Style {
 
         if let Some(color) = self.bg {
             prefix.push_str(&ansi_fn(color, Layer::Background));
+        }
+
+        if self.bold {
+            prefix.push_str("\x1b[1m");
         }
 
         if prefix.is_empty() {
