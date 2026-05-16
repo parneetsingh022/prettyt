@@ -123,7 +123,15 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
             let g = (x / 6) % 6;
             let b = x % 6;
 
-            let level = |v: u8| if v == 0 { 0 } else { 55 + v * 40 };
+            let level = |v: u8| match v {
+                0 => 0,
+                1 => 95,
+                2 => 135,
+                3 => 175,
+                4 => 215,
+                5 => 255,
+                _ => unreachable!(),
+            };
 
             (level(r), level(g), level(b))
         }
@@ -132,8 +140,8 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
             let gray = 8 + (n - 232) * 10;
 
             return match gray {
-                0..=64 => BasicColor::Black,
-                65..=159 => BasicColor::BrightBlack,
+                0..=54 => BasicColor::Black,
+                55..=159 => BasicColor::BrightBlack,
                 160..=239 => BasicColor::White,
                 _ => BasicColor::BrightWhite,
             };
@@ -144,9 +152,9 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
     let mut best_dist = u32::MAX;
 
     for (i, &(cr, cg, cb)) in ANSI16_RGB.iter().enumerate() {
-        let dr = rgb.0 as i32 - cr as i32;
-        let dg = rgb.1 as i32 - cg as i32;
-        let db = rgb.2 as i32 - cb as i32;
+        let dr = rgb.0 - cr as i32;
+        let dg = rgb.1 - cg as i32;
+        let db = rgb.2 - cb as i32;
 
         let dist = (dr * dr + dg * dg + db * db) as u32;
 
