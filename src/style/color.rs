@@ -79,10 +79,17 @@ pub(crate) fn ansi16_to_basic(n: u8) -> BasicColor {
 }
 
 pub(crate) fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
-    // Rounding to the nearest increment of 51
-    let r = ((r as u16 * 5 + 127) / 255) as u8;
-    let g = ((g as u16 * 5 + 127) / 255) as u8;
-    let b = ((b as u16 * 5 + 127) / 255) as u8;
+    fn channel(v: u8) -> u8 {
+        match v {
+            0..=47 => 0,
+            48..=114 => 1,
+            _ => (v - 35) / 40,
+        }
+    }
+
+    let r = channel(r);
+    let g = channel(g);
+    let b = channel(b);
 
     16 + 36 * r + 6 * g + b
 }
@@ -242,26 +249,36 @@ mod tests {
     }
 
     #[test]
-    fn rgb_to_ansi256_rounding_thresholds() {
-        assert_eq!(rgb_to_ansi256(25, 0, 0), 16);
-        assert_eq!(rgb_to_ansi256(26, 0, 0), 52);
+    fn rgb_to_ansi256_xterm_thresholds() {
+        assert_eq!(rgb_to_ansi256(47, 0, 0), 16);
+        assert_eq!(rgb_to_ansi256(48, 0, 0), 52);
 
-        assert_eq!(rgb_to_ansi256(76, 0, 0), 52);
-        assert_eq!(rgb_to_ansi256(77, 0, 0), 88);
+        assert_eq!(rgb_to_ansi256(114, 0, 0), 52);
+        assert_eq!(rgb_to_ansi256(115, 0, 0), 88);
 
-        assert_eq!(rgb_to_ansi256(127, 0, 0), 88);
-        assert_eq!(rgb_to_ansi256(128, 0, 0), 124);
+        assert_eq!(rgb_to_ansi256(154, 0, 0), 88);
+        assert_eq!(rgb_to_ansi256(155, 0, 0), 124);
 
-        assert_eq!(rgb_to_ansi256(178, 0, 0), 124);
-        assert_eq!(rgb_to_ansi256(179, 0, 0), 160);
+        assert_eq!(rgb_to_ansi256(194, 0, 0), 124);
+        assert_eq!(rgb_to_ansi256(195, 0, 0), 160);
 
-        assert_eq!(rgb_to_ansi256(229, 0, 0), 160);
-        assert_eq!(rgb_to_ansi256(230, 0, 0), 196);
+        assert_eq!(rgb_to_ansi256(234, 0, 0), 160);
+        assert_eq!(rgb_to_ansi256(235, 0, 0), 196);
+    }
+
+    #[test]
+    fn rgb_to_ansi256_xterm_levels() {
+        assert_eq!(rgb_to_ansi256(0, 0, 0), 16);
+        assert_eq!(rgb_to_ansi256(0, 0, 95), 17);
+        assert_eq!(rgb_to_ansi256(0, 0, 135), 18);
+        assert_eq!(rgb_to_ansi256(0, 0, 175), 19);
+        assert_eq!(rgb_to_ansi256(0, 0, 215), 20);
+        assert_eq!(rgb_to_ansi256(0, 0, 255), 21);
     }
 
     #[test]
     fn rgb_to_ansi256_mixed_color() {
-        assert_eq!(rgb_to_ansi256(128, 64, 255), 135);
+        assert_eq!(rgb_to_ansi256(128, 64, 255), 99);
     }
 
     // !!!! ansi256_to_ansi16
