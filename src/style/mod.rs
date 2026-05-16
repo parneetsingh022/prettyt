@@ -1,6 +1,7 @@
 pub mod color;
-pub use self::color::Color;
+pub mod macros;
 
+pub use self::color::Color;
 use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
 use crate::terminal::{ColorLevel, get_cached_level};
 
