@@ -48,6 +48,7 @@ impl Style {
 
 #[cfg(test)]
 mod tests {
+    use self::color::to_ansi_string_inner;
     use super::*;
 
     #[test]
@@ -103,7 +104,7 @@ mod tests {
             style.apply("hello"),
             format!(
                 "{}hello\x1b[0m",
-                to_ansi_string(Color::RED, Layer::Foreground)
+                to_ansi_string_inner(Color::RED, Layer::Foreground)
             )
         );
     }
@@ -116,7 +117,7 @@ mod tests {
             style.apply("hello"),
             format!(
                 "{}hello\x1b[0m",
-                to_ansi_string(Color::BLUE, Layer::Background)
+                to_ansi_string_inner(Color::BLUE, Layer::Background)
             )
         );
     }
@@ -129,8 +130,8 @@ mod tests {
             style.apply("hello"),
             format!(
                 "{}{}hello\x1b[0m",
-                to_ansi_string(Color::RED, Layer::Foreground),
-                to_ansi_string(Color::BLUE, Layer::Background),
+                to_ansi_string_inner(Color::RED, Layer::Foreground),
+                to_ansi_string_inner(Color::BLUE, Layer::Background),
             )
         );
     }
@@ -143,7 +144,7 @@ mod tests {
             style.apply(42),
             format!(
                 "{}42\x1b[0m",
-                to_ansi_string(Color::GREEN, Layer::Foreground)
+                to_ansi_string_inner(Color::GREEN, Layer::Foreground)
             )
         );
     }
