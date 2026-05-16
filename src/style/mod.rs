@@ -169,4 +169,43 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn bold_sets_bold_to_true() {
+        let style = Style::new().bold();
+
+        assert!(style.bold);
+        assert_eq!(style.fg, None);
+        assert_eq!(style.bg, None);
+    }
+
+    #[test]
+    fn bold_can_be_chained_with_fg_and_bg() {
+        let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
+
+        assert_eq!(style.fg, Some(Color::RED));
+        assert_eq!(style.bg, Some(Color::BLUE));
+        assert!(style.bold);
+    }
+
+    #[test]
+    fn apply_with_bold_wraps_text_with_bold_ansi_and_reset() {
+        let style = Style::new().bold();
+
+        assert_eq!(style.apply_inner("hello", false), "\x1b[1mhello\x1b[0m");
+    }
+
+    #[test]
+    fn apply_with_foreground_background_and_bold_orders_bold_after_colors() {
+        let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
+
+        assert_eq!(
+            style.apply_inner("hello", false),
+            format!(
+                "{}{}\x1b[1mhello\x1b[0m",
+                to_ansi_string_inner(Color::RED, Layer::Foreground),
+                to_ansi_string_inner(Color::BLUE, Layer::Background),
+            )
+        );
+    }
 }
