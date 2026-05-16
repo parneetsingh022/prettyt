@@ -152,9 +152,9 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
     let mut best_dist = u32::MAX;
 
     for (i, &(cr, cg, cb)) in ANSI16_RGB.iter().enumerate() {
-        let dr = rgb.0 as i32 - cr as i32;
-        let dg = rgb.1 as i32 - cg as i32;
-        let db = rgb.2 as i32 - cb as i32;
+        let dr = rgb.0 - cr as i32;
+        let dg = rgb.1 - cg as i32;
+        let db = rgb.2 - cb as i32;
 
         let dist = (dr * dr + dg * dg + db * db) as u32;
 
