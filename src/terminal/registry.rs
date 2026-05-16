@@ -8,6 +8,6 @@ static COLOR_SUPPORT: OnceLock<ColorLevel> = OnceLock::new();
 ///
 /// Uses a thread-safe, lazy initialization to check environment variables and TTY status
 /// once per program execution.
-pub fn get_cached_level() -> ColorLevel {
+pub(crate) fn get_cached_level() -> ColorLevel {
     *COLOR_SUPPORT.get_or_init(detect_color_level)
 }
