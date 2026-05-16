@@ -177,6 +177,11 @@ pub(crate) fn get_appropriate_color(color: Color) -> Color {
 
 pub(crate) fn to_ansi_string(color: Color, layer: Layer) -> String {
     let color = get_appropriate_color(color);
+
+    to_ansi_string_inner(color, layer)
+}
+
+pub(crate) fn to_ansi_string_inner(color: Color, layer: Layer) -> String {
     let fg = matches!(layer, Layer::Foreground);
 
     match color {
@@ -358,7 +363,7 @@ mod tests {
     #[test]
     fn rgb_foreground() {
         assert_eq!(
-            to_ansi_string(Color::Rgb(255, 128, 0), Layer::Foreground),
+            to_ansi_string_inner(Color::Rgb(255, 128, 0), Layer::Foreground),
             "\x1b[38;2;255;128;0m"
         );
     }
@@ -366,7 +371,7 @@ mod tests {
     #[test]
     fn rgb_background() {
         assert_eq!(
-            to_ansi_string(Color::Rgb(255, 128, 0), Layer::Background),
+            to_ansi_string_inner(Color::Rgb(255, 128, 0), Layer::Background),
             "\x1b[48;2;255;128;0m"
         );
     }
@@ -374,7 +379,7 @@ mod tests {
     #[test]
     fn ansi256_foreground() {
         assert_eq!(
-            to_ansi_string(Color::Ansi256(196), Layer::Foreground),
+            to_ansi_string_inner(Color::Ansi256(196), Layer::Foreground),
             "\x1b[38;5;196m"
         );
     }
@@ -382,7 +387,7 @@ mod tests {
     #[test]
     fn ansi256_background() {
         assert_eq!(
-            to_ansi_string(Color::Ansi256(196), Layer::Background),
+            to_ansi_string_inner(Color::Ansi256(196), Layer::Background),
             "\x1b[48;5;196m"
         );
     }
@@ -390,7 +395,7 @@ mod tests {
     #[test]
     fn ansi16_normal_foreground() {
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::Red), Layer::Foreground),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::Red), Layer::Foreground),
             "\x1b[31m"
         );
     }
@@ -398,7 +403,7 @@ mod tests {
     #[test]
     fn ansi16_normal_background() {
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::Red), Layer::Background),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::Red), Layer::Background),
             "\x1b[41m"
         );
     }
@@ -406,7 +411,7 @@ mod tests {
     #[test]
     fn ansi16_bright_foreground() {
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::BrightRed), Layer::Foreground),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightRed), Layer::Foreground),
             "\x1b[91m"
         );
     }
@@ -414,7 +419,7 @@ mod tests {
     #[test]
     fn ansi16_bright_background() {
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::BrightRed), Layer::Background),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightRed), Layer::Background),
             "\x1b[101m"
         );
     }
@@ -422,36 +427,36 @@ mod tests {
     #[test]
     fn ansi16_boundaries() {
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::Black), Layer::Foreground),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::Black), Layer::Foreground),
             "\x1b[30m"
         );
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::White), Layer::Foreground),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::White), Layer::Foreground),
             "\x1b[37m"
         );
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::BrightBlack), Layer::Foreground),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightBlack), Layer::Foreground),
             "\x1b[90m"
         );
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::BrightWhite), Layer::Foreground),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightWhite), Layer::Foreground),
             "\x1b[97m"
         );
 
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::Black), Layer::Background),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::Black), Layer::Background),
             "\x1b[40m"
         );
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::White), Layer::Background),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::White), Layer::Background),
             "\x1b[47m"
         );
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::BrightBlack), Layer::Background),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightBlack), Layer::Background),
             "\x1b[100m"
         );
         assert_eq!(
-            to_ansi_string(Color::Ansi16(BasicColor::BrightWhite), Layer::Background),
+            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightWhite), Layer::Background),
             "\x1b[107m"
         );
     }
