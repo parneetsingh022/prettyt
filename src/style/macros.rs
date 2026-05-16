@@ -4,7 +4,7 @@ macro_rules! make_style {
         {
             let s = $crate::style::Style::new();
             $(
-                let s = make_style!(@impl s, $attr $(($val))?);
+                let s = $crate::make_style!(@impl s, $attr $(($val))?);
             )*
             s
         }
@@ -22,8 +22,8 @@ macro_rules! make_style {
 
 #[macro_export]
 macro_rules! println_styled {
-    ($style:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        println!("{}", $style.apply(format!($fmt $(, $arg)*)));
+    ($style:expr, $fmt:expr $(, $($arg:tt)*)?) => {
+        println!("{}", $style.apply(format_args!($fmt $(, $($arg)*)?)));
     };
 }
 
@@ -95,6 +95,19 @@ mod tests {
         println_styled!(
             sample_style,
             "Testing single string value with trailing comma",
+        );
+    }
+
+    #[test]
+    fn test_println_styled_with_named_args() {
+        let sample_style = crate::style::Style::new().bold();
+
+        // This will now compile flawlessly!
+        println_styled!(
+            sample_style,
+            "Welcome back, {user}! Dev server status: {status}",
+            user = "Parneet",
+            status = "Active"
         );
     }
 }
