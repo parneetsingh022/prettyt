@@ -2,8 +2,9 @@ pub mod color;
 pub use self::color::Color;
 
 use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
+use crate::terminal::{ColorLevel, get_cached_level};
 
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default, Copy, Clone)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
@@ -27,11 +28,23 @@ impl Style {
         self
     }
 
+    pub fn bold(mut self) -> Self {
+        self.bold = true;
+
+        self
+    }
+
     pub fn apply(&self, value: impl std::fmt::Display) -> String {
         self.apply_inner(value, true)
     }
 
     pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, detect_color: bool) -> String {
+        let has_styles = self.fg.is_some() || self.bg.is_some() || self.bold;
+
+        if !has_styles || detect_color && get_cached_level() == ColorLevel::None {
+            return value.to_string();
+        }
+
         let mut prefix = String::new();
 
         // GitHub tests do not have terminal/environment detection available, so use the
@@ -48,6 +61,10 @@ impl Style {
 
         if let Some(color) = self.bg {
             prefix.push_str(&ansi_fn(color, Layer::Background));
+        }
+
+        if self.bold {
+            prefix.push_str("\x1b[1m");
         }
 
         if prefix.is_empty() {
@@ -156,6 +173,45 @@ mod tests {
             format!(
                 "{}42\x1b[0m",
                 to_ansi_string_inner(Color::GREEN, Layer::Foreground)
+            )
+        );
+    }
+
+    #[test]
+    fn bold_sets_bold_to_true() {
+        let style = Style::new().bold();
+
+        assert!(style.bold);
+        assert_eq!(style.fg, None);
+        assert_eq!(style.bg, None);
+    }
+
+    #[test]
+    fn bold_can_be_chained_with_fg_and_bg() {
+        let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
+
+        assert_eq!(style.fg, Some(Color::RED));
+        assert_eq!(style.bg, Some(Color::BLUE));
+        assert!(style.bold);
+    }
+
+    #[test]
+    fn apply_with_bold_wraps_text_with_bold_ansi_and_reset() {
+        let style = Style::new().bold();
+
+        assert_eq!(style.apply_inner("hello", false), "\x1b[1mhello\x1b[0m");
+    }
+
+    #[test]
+    fn apply_with_foreground_background_and_bold_orders_bold_after_colors() {
+        let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
+
+        assert_eq!(
+            style.apply_inner("hello", false),
+            format!(
+                "{}{}\x1b[1mhello\x1b[0m",
+                to_ansi_string_inner(Color::RED, Layer::Foreground),
+                to_ansi_string_inner(Color::BLUE, Layer::Background),
             )
         );
     }
