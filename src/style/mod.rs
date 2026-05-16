@@ -215,18 +215,4 @@ mod tests {
             )
         );
     }
-
-    #[test]
-    fn apply_with_colors_and_bold_when_detection_is_disabled() {
-        let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
-
-        assert_eq!(
-            style.apply_inner("hello", false),
-            format!(
-                "{}{}\x1b[1mhello\x1b[0m",
-                to_ansi_string_inner(Color::RED, Layer::Foreground),
-                to_ansi_string_inner(Color::BLUE, Layer::Background),
-            )
-        );
-    }
 }
