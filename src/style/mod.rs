@@ -1,3 +1,8 @@
+//! Text manipulation properties, custom coloring models, and evaluation macros.
+//!
+//! This module houses the [`Style`] structure which operates as a builder container
+//! for stacking properties like foreground colors, backgrounds, and font weights.
+
 pub mod color;
 pub mod macros;
 
@@ -5,6 +10,26 @@ pub use self::color::Color;
 use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
 use crate::terminal::{ColorLevel, get_cached_level};
 
+/// A builder profile container storing terminal styling codes.
+///
+/// Modifiers chain fluently. The styles are only wrapped around text during
+/// evaluation by the [`apply`](Style::apply) method.
+///
+/// # Environment Awareness
+/// If the host system declares color limitations (e.g. `NO_COLOR` is found or stdout is
+/// piped out of a TTY), the text escapes disappear entirely, outputting clean, unstyled strings.
+///
+/// # Examples
+/// ```rust
+/// use prettyt::style::{Style, Color};
+///
+/// let configuration = Style::new()
+///     .fg(Color::Ansi256(220))
+///     .bg(Color::BLACK)
+///     .italic();
+///
+/// println!("{}", configuration.apply("Standardized Output"));
+/// ```
 #[derive(Debug, PartialEq, Eq, Default, Copy, Clone)]
 pub struct Style {
     fg: Option<Color>,
@@ -18,53 +43,66 @@ pub struct Style {
 }
 
 impl Style {
+    /// Creates a blank style state with no modifiers active.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the foreground text color.
     pub fn fg(mut self, color: Color) -> Self {
         self.fg = Some(color);
 
         self
     }
 
+    /// Sets the background text color.
     pub fn bg(mut self, color: Color) -> Self {
         self.bg = Some(color);
 
         self
     }
 
+    /// Appends a bold font emphasis attribute.
     pub fn bold(mut self) -> Self {
         self.bold = true;
 
         self
     }
 
+    /// Appends an underline attribute.
     pub fn underline(mut self) -> Self {
         self.underline = true;
         self
     }
 
+    /// Appends an italic attribute.
     pub fn italic(mut self) -> Self {
         self.italic = true;
         self
     }
 
+    /// Appends a strikethrough attribute.
     pub fn strikethrough(mut self) -> Self {
         self.strikethrough = true;
         self
     }
 
+    /// Appends a faint/dim attribute.
     pub fn dim(mut self) -> Self {
         self.dim = true;
         self
     }
 
+    /// Appends an inversion attribute that natively swaps foreground and background colors.
     pub fn invert(mut self) -> Self {
         self.invert = true;
         self
     }
 
+    // Wraps the provided type with the built ANSI escape codes.
+    ///
+    /// Accepts any type implementing [`Display`](std::fmt::Display). If color support is absent,
+    /// it falls back gracefully to a standard unstyled string copy.
     pub fn apply(&self, value: impl std::fmt::Display) -> String {
         self.apply_inner(value, true)
     }
