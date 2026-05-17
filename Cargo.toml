@@ -2,5 +2,13 @@
 name = "prettyt"
 version = "0.1.0"
 edition = "2024"
+authors = ["Parneet Sidhu parneetsingh022@gmail.com"]
+description = "A lightweight, environment-aware ANSI terminal text styling library with automatic color capability detection."
+documentation = "https://docs.rs/prettyt"
+repository = "https://github.com/parneetsingh022/prettyt"
+readme = "README.md"
+keywords = ["ansi", "terminal", "color", "styling", "cli"]
+categories = ["command-line-interface", "rendering"]
+license = "Apache-2.0"
 
 [dependencies]
