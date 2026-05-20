@@ -35,10 +35,3 @@
 
 pub mod style;
 pub mod terminal;
-
-/// Environment routing cascade and color fallback logic.
-///
-/// This section maps out exactly how `prettyt` prioritizes environment variables like
-/// `NO_COLOR` and `FORCE_COLOR` to determine terminal styling support.
-#[doc(inline)]
-pub use crate::terminal::detect;
