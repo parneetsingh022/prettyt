@@ -89,3 +89,18 @@ fn main() {
     println!("{}", style.apply("PrettyT"));
 }
 ```
+
+
+## Environment Configuration & Overrides
+
+`prettyt` automatically determines the appropriate color capability depth depending on your user's environment. You can explicitly customize or override this runtime behavior using standard environment variables:
+
+| Environment Variable | Allowed Values | Description |
+|---|---|---|
+| **`FORCE_COLOR`** | `0`, `1`, `2`, `3` or `yes` | Explicitly overrides all other checks (including piped output and `NO_COLOR`). `0` turns color off, `1` targets basic 16 colors, `2` targets 256 colors, and `3`/`yes` forces TrueColor. |
+| **`NO_COLOR`** | Any value | Disables styling outright (per the [no-color.org](https://no-color.org) standard) unless overridden by `FORCE_COLOR`. |
+| **`COLORTERM`** | `truecolor`, `24bit` | Signals to `prettyt` that the terminal emulator natively handles raw 24-bit RGB values. |
+| **`TERM`** | `dumb`, `*256color*` | Base fallback identification. `dumb` suppresses style codes, while strings containing `256color` safely enable the 256-index lookup downsampler. |
+
+### Piping & Redirection Support
+By default, if `stdout` is redirected or piped to another process or file (meaning it is not an interactive TTY), `prettyt` automatically disables styling to keep raw output text clean and pristine, unless manually forced via `FORCE_COLOR`.
