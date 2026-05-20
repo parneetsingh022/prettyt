@@ -90,17 +90,32 @@ fn main() {
 }
 ```
 
-
 ## Environment Configuration & Overrides
 
-`prettyt` automatically determines the appropriate color capability depth depending on your user's environment. You can explicitly customize or override this runtime behavior using standard environment variables:
+`prettyt` automatically detects terminal color support based on the current
+environment and output stream. This behavior can be customized using standard
+environment variables:
 
 | Environment Variable | Allowed Values | Description |
 |---|---|---|
-| **`FORCE_COLOR`** | `0`, `1`, `2`, `3` or `yes` | Explicitly overrides all other checks (including piped output and `NO_COLOR`). `0` turns color off, `1` targets basic 16 colors, `2` targets 256 colors, and `3`/`yes` forces TrueColor. |
-| **`NO_COLOR`** | Any value | Disables styling outright (per the [no-color.org](https://no-color.org) standard) unless overridden by `FORCE_COLOR`. |
-| **`COLORTERM`** | `truecolor`, `24bit` | Signals to `prettyt` that the terminal emulator natively handles raw 24-bit RGB values. |
-| **`TERM`** | `dumb`, `*256color*` | Base fallback identification. `dumb` suppresses style codes, while strings containing `256color` safely enable the 256-index lookup downsampler. |
+| **`NO_COLOR`** | Any value | Disables all styling and color output. Presence alone is enough to disable colors, following the [no-color.org](https://no-color.org) convention. |
+| **`FORCE_COLOR`** | `0`, `1`, `2`, `3`, `true`, `yes` | Explicitly forces a color level, even when output is redirected or piped. `0` disables color, `1` enables basic ANSI colors, `2` enables 256-color support, and any other value enables TrueColor. |
+| **`COLORTERM`** | `truecolor`, `24bit` | Indicates native 24-bit RGB color support in the active terminal emulator. |
+| **`TERM`** | `dumb`, `*256color*` | Fallback terminal capability detection. `dumb` disables styling, while values containing `256color` enable 256-color support. |
 
-### Piping & Redirection Support
-By default, if `stdout` is redirected or piped to another process or file (meaning it is not an interactive TTY), `prettyt` automatically disables styling to keep raw output text clean and pristine, unless manually forced via `FORCE_COLOR`.
+### Detection Precedence
+
+Environment detection follows this priority order:
+
+1. `NO_COLOR`
+2. `FORCE_COLOR`
+3. TTY detection (`stdout.is_terminal()`)
+4. `COLORTERM`
+5. `TERM`
+6. Fallback to basic ANSI colors
+
+### Piping & Redirection
+
+If stdout is redirected or piped to another process, `prettyt` automatically
+disables styling to avoid leaking ANSI escape sequences into logs or plain-text
+outputs. This behavior can still be overridden with `FORCE_COLOR`.

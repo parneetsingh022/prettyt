@@ -1,16 +1,21 @@
 //! Terminal color capability detection.
 //!
-//! Inspects environment variables and whether stdout is a TTY to determine
-//! how many colors the terminal supports, returning a [`ColorLevel`] used
-//! throughout `prettyt` to render styled output.
+//! Detects terminal color support by inspecting environment variables and
+//! whether stdout is attached to a TTY, returning a [`ColorLevel`] used by
+//! `prettyt` for styled output rendering.
 //!
-//! ## Detection order
+//! ## Detection precedence
 //!
-//! - **`FORCE_COLOR`** — if set (and not `"0"`), forces true color regardless of other signals.
-//! - **TTY check** — if stdout is piped, color is disabled entirely.
-//! - **`NO_COLOR`** — if set to any value, disables color ([no-color.org](https://no-color.org)).
-//! - **`COLORTERM`** — `"truecolor"` or `"24bit"` advertises full RGB support.
-//! - **`TERM`** — `"dumb"` means no color, `"*256color*"` means 256 colors, else basic 16.
+//! Detection follows this order:
+//!
+//! - **`NO_COLOR`** — if present, color output is fully disabled
+//!   ([no-color.org](https://no-color.org)).
+//! - **`FORCE_COLOR`** — if set (and not `"0"`), color output is forced
+//!   even when stdout is not a TTY.
+//! - **TTY check** — if stdout is not a terminal, color is disabled.
+//! - **`COLORTERM`** — `"truecolor"` or `"24bit"` enables 24-bit RGB color.
+//! - **`TERM`** — `"dumb"` disables color, `"*256color*"` enables 256-color
+//!   support, otherwise basic ANSI colors are assumed.
 
 use std::{
     env,
@@ -46,6 +51,10 @@ fn detect_color_level_inner(
     colorterm: Option<&str>,
     term: Option<&str>,
 ) -> ColorLevel {
+    if no_color {
+        return ColorLevel::None;
+    }
+
     match force_color {
         Some("0") => return ColorLevel::None,
         Some("1") => return ColorLevel::Basic,
@@ -54,7 +63,7 @@ fn detect_color_level_inner(
         None => {}
     }
 
-    if !is_tty || no_color {
+    if !is_tty {
         return ColorLevel::None;
     }
 
@@ -120,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn force_color_overrides_no_color() {
+    fn no_color_overrides_force_color() {
         assert_eq!(
             detect_color_level_inner(
                 true,
@@ -129,7 +138,7 @@ mod tests {
                 Some("truecolor"),
                 Some("xterm-256color")
             ),
-            ColorLevel::TrueColor
+            ColorLevel::None
         );
     }
 
