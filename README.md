@@ -24,17 +24,45 @@ A lightweight, environment-aware terminal text styling library with automatic co
 * Lightweight and fast
 
 ## Quick Start
+
+### Inline Printing (Using Macros)
+Use the `println_styled!` macro to cleanly format and print styled text. It seamlessly handles native `format!` interpolation arguments directly, eliminating the need to manually build separate formatted strings beforehand:
 ```rust
-use prettyt::style::Color;
 use prettyt::make_style;
+use prettyt::style::Color;
+use prettyt::println_styled;
 
 fn main() {
-    let success = make_style!(fg(Color::BRIGHT_GREEN), bold);
-    let error = make_style!(fg(Color::BRIGHT_RED), bold);
+    let info = make_style!(fg(Color::BRIGHT_CYAN), bold);
+    let success = make_style!(fg(Color::BRIGHT_GREEN));
 
-    println!("{}", success.apply("SUCCESS"));
-    println!("{}", error.apply("ERROR"));
+    // Pass format arguments smoothly into the macro
+    println_styled!(info, "-> Launching cluster workers on node #{}", 104);
+    
+    println_styled!(
+        success, 
+        "-> Status: {} (verified in {}s)", 
+        "OK", 
+        0.003
+    );
 }
+```
+### Builder Style Formatting
+For finer control, you can build styles dynamically using the fluent builder API. The `.apply()` method accepts any type implementing `std::fmt::Display` (such as strings, integers, or floats) and returns an environment-aware styled string:
+
+```rust
+
+use prettyt::style::{Style, Color};
+
+fn main() {
+    let error_badge = Style::new().fg(Color::WHITE).bg(Color::RED).bold();
+    let highlight = Style::new().fg(Color::CYAN).bold();
+
+    // Pass strings or numeric values seamlessly to .apply()
+    println!("{} Database panic!", error_badge.apply(" PANIC "));
+    println!("Returned error code: {}", highlight.apply(500));
+}
+
 ```
 
 ## Available Styles
