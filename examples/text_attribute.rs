@@ -1,4 +1,4 @@
-use prettyt::style::{Color, Style};
+use prettyt::{Color, Style};
 
 fn main() {
     // --- Advanced Typography and Text Attributes ---
