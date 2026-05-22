@@ -194,6 +194,8 @@ impl Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::terminal::TerminalApp;
+    use crate::terminal::app::force_mock_terminal_app;
 
     #[test]
     fn new_returns_default_style() {
@@ -407,5 +409,44 @@ mod tests {
                 to_ansi_string_inner(Color::Blue, Layer::Background),
             )
         );
+    }
+
+    #[test]
+    fn apply_with_strikethrough_uses_unicode_fallback_on_apple_terminal() {
+        force_mock_terminal_app(Some(TerminalApp::AppleTerminal));
+
+        assert_eq!(get_terminal_app(), TerminalApp::AppleTerminal);
+
+        // Force the system to think it's running on Apple Terminal
+        // Note: In a real test environment, you would ensure your OnceLock state
+        // matches or mock the underlying detection if you want to test it in pure isolation.
+        let style = Style::new().strikethrough();
+
+        // Evaluate text format mapping with detect_color set to true
+        let result = style.apply_inner("abc", true);
+
+        // If the OnceLock resolves to AppleTerminal, it must contain the combining characters
+        // e + \u{0336} instead of the ANSI escape code \x1b[9m
+        if crate::terminal::get_terminal_app() == TerminalApp::AppleTerminal {
+            assert!(result.contains('\u{0336}'));
+            assert!(!result.contains("\x1b[9m"));
+        }
+    }
+
+    #[test]
+    fn apply_with_strikethrough_uses_ansi_escape_on_standard_terminals() {
+        // Force the system to act as an Unknown/Standard terminal
+        force_mock_terminal_app(Some(TerminalApp::Unknown));
+        assert_eq!(get_terminal_app(), TerminalApp::Unknown);
+
+        let style = Style::new().strikethrough();
+        let result = style.apply_inner("abc", true);
+
+        // Verify that it uses standard ANSI strings on standard platforms
+        assert!(result.contains("\x1b[9m"));
+        assert!(!result.contains('\u{0336}'));
+
+        // Clear mock state
+        force_mock_terminal_app(None);
     }
 }
