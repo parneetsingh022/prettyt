@@ -40,7 +40,7 @@ fn main() {
 
     // --- Composing styles for a log line ---
     let timestamp = Style::new().fg(Color::BrightBlack);
-    let level_ok = Style::new().fg(Color::BrightGreen);
+    let level_ok = Style::new().fg(Color::Green);
     let message = Style::new().fg(Color::White);
 
     let ts = timestamp.apply("[12:34:56]");
