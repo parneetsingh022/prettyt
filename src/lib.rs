@@ -11,25 +11,42 @@
 //!
 //! ## Quick Start
 //!
-//! ### Using Macros
+//! ### Inline Printing (Using Macros)
+//! Use the `println_styled!` macro to cleanly format and print styled text. It seamlessly handles native `format!` interpolation arguments directly, eliminating the need to manually build separate formatted strings beforehand:
 //! ```rust
-//! use prettyt::{make_style, println_styled};
+//! use prettyt::make_style;
 //! use prettyt::style::Color;
+//! use prettyt::println_styled;
 //!
 //! # fn main() {
-//! let success_banner = make_style!(fg(Color::BRIGHT_GREEN), bold);
-//! println!("{}", success_banner.apply("BUILD SUCCESSFUL"));
-//! println_styled!(success_banner, "Success: {}", 101);
+//! let info = make_style!(fg(Color::BrightCyan), bold);
+//! let success = make_style!(fg(Color::BrightGreen));
+//!
+//! // Pass format arguments smoothly into the macro
+//! println_styled!(info, "-> Launching cluster workers on node #{}", 104);
+//!
+//! println_styled!(
+//!     success,
+//!     "-> Status: {} (verified in {}s)",
+//!     "OK",
+//!     0.003
+//! );
 //! # }
 //! ```
 //!
-//! ### Using the Builder API
+//! ### Builder Style Formatting
+//! For finer control, you can build styles dynamically using the fluent builder API. The `.apply()` method accepts any type implementing `std::fmt::Display` (such as strings, integers, or floats) and returns an environment-aware styled string:
+//!
 //! ```rust
 //! use prettyt::style::{Style, Color};
 //!
 //! # fn main() {
-//! let error_style = Style::new().fg(Color::Rgb(255, 50, 50)).bold().underline();
-//! println!("{}", error_style.apply("CRITICAL FAILURE"));
+//! let error_badge = Style::new().fg(Color::White).bg(Color::Red).bold();
+//! let highlight = Style::new().fg(Color::Cyan).bold();
+//!
+//! // Pass strings or numeric values seamlessly to .apply()
+//! println!("{} Database panic!", error_badge.apply(" PANIC "));
+//! println!("Returned error code: {}", highlight.apply(500));
 //! # }
 //! ```
 

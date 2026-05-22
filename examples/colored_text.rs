@@ -2,10 +2,10 @@ use prettyt::style::{Color, Style};
 
 fn main() {
     // --- Basic ANSI 16 colors ---
-    let error = Style::new().fg(Color::BRIGHT_RED).bold();
-    let success = Style::new().fg(Color::BRIGHT_GREEN).bold();
-    let warning = Style::new().fg(Color::YELLOW);
-    let muted = Style::new().fg(Color::BRIGHT_BLACK); // gray
+    let error = Style::new().fg(Color::BrightRed).bold();
+    let success = Style::new().fg(Color::BrightGreen).bold();
+    let warning = Style::new().fg(Color::Yellow);
+    let muted = Style::new().fg(Color::BrightBlack); // gray
 
     println!("{} Something went wrong", error.apply("[ERROR]"));
     println!("{} Build passed in 0.43s", success.apply("[OK]"));
@@ -39,9 +39,9 @@ fn main() {
     println!();
 
     // --- Composing styles for a log line ---
-    let timestamp = Style::new().fg(Color::BRIGHT_BLACK);
-    let level_ok = Style::new().fg(Color::GREEN);
-    let message = Style::new().fg(Color::WHITE);
+    let timestamp = Style::new().fg(Color::BrightBlack);
+    let level_ok = Style::new().fg(Color::Green);
+    let message = Style::new().fg(Color::White);
 
     let ts = timestamp.apply("[12:34:56]");
     let lvl = level_ok.apply("INFO ");
@@ -50,7 +50,7 @@ fn main() {
     println!("{} {} {}", ts, lvl, msg);
 
     // --- Numeric values work too ---
-    let highlight = Style::new().fg(Color::CYAN).bold();
+    let highlight = Style::new().fg(Color::Cyan).bold();
     println!("Result:   {}", highlight.apply(42));
     println!("Uptime:   {}", highlight.apply(99.97));
 }

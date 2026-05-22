@@ -34,6 +34,7 @@ fn is_tty() -> bool {
     io::stdout().is_terminal()
 }
 
+/// Returns the color level
 pub fn detect_color_level() -> ColorLevel {
     detect_color_level_inner(
         is_tty(),
