@@ -21,7 +21,7 @@ macro_rules! make_style {
 }
 
 #[macro_export]
-macro_rules! println_styled {
+macro_rules! sprintln {
     ($style:expr, $fmt:expr $(, $($arg:tt)*)?) => {
         println!("{}", $style.apply(format_args!($fmt $(, $($arg)*)?)));
     };
@@ -79,31 +79,31 @@ mod tests {
     }
 
     #[test]
-    fn test_println_styled_expansion() {
-        // Since println_styled! calls println!, we can verify it compiles
+    fn test_sprintln_expansion() {
+        // Since sprintln! calls println!, we can verify it compiles
         // cleanly and formats correctly using a valid style object.
         let sample_style = Style::new().fg(Color::Cyan).bold();
 
         // This confirms the format string syntax arguments expansion compiles without issues
-        println_styled!(
+        sprintln!(
             sample_style,
             "Testing macro output: {} + {} = {}",
             "foo",
             "bar",
             42
         );
-        println_styled!(
+        sprintln!(
             sample_style,
             "Testing single string value with trailing comma",
         );
     }
 
     #[test]
-    fn test_println_styled_with_named_args() {
+    fn test_sprintln_with_named_args() {
         let sample_style = crate::style::Style::new().bold();
 
         // This will now compile flawlessly!
-        println_styled!(
+        sprintln!(
             sample_style,
             "Welcome back, {user}! Dev server status: {status}",
             user = "Parneet",
