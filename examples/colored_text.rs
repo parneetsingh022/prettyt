@@ -1,4 +1,4 @@
-use prettyt::style::{Color, Style};
+use prettyt::{Color, Style};
 
 fn main() {
     // --- Basic ANSI 16 colors ---

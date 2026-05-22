@@ -3,8 +3,7 @@
 //! This example showcases how to use the declarative macros provided by `prettyt`
 //! for cleaner, inline terminal styling and formatting.
 
-use prettyt::style::Color;
-use prettyt::{make_style, println_styled};
+use prettyt::{Color, make_style, println_styled};
 
 fn main() {
     // =========================================================================
