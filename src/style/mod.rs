@@ -107,6 +107,10 @@ impl Style {
         self.apply_inner(value, true)
     }
 
+    /// Formats and wraps a displayable value with the active style configuration attributes.
+    ///
+    /// * `value`: The target text payload to style.
+    /// * `detect_color`: If true, respects the environment's terminal capability profile (stripping styles on headless CI or file pipes); if false, bypasses all guards to force formatting generation (critical for unit testing isolation).
     pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, detect_color: bool) -> String {
         let has_styles = self.fg.is_some()
             || self.bg.is_some()
@@ -196,6 +200,7 @@ mod tests {
     use super::*;
     use crate::terminal::TerminalApp;
     use crate::terminal::app::force_mock_terminal_app;
+    use crate::terminal::registry::force_mock_color_level;
 
     #[test]
     fn new_returns_default_style() {
@@ -414,8 +419,10 @@ mod tests {
     #[test]
     fn apply_with_strikethrough_uses_unicode_fallback_on_apple_terminal() {
         force_mock_terminal_app(Some(TerminalApp::AppleTerminal));
+        force_mock_color_level(Some(ColorLevel::Ansi256));
 
         assert_eq!(get_terminal_app(), TerminalApp::AppleTerminal);
+        assert_eq!(get_cached_level(), ColorLevel::Ansi256);
 
         // Force the system to think it's running on Apple Terminal
         // Note: In a real test environment, you would ensure your OnceLock state
@@ -425,19 +432,20 @@ mod tests {
         // Evaluate text format mapping with detect_color set to true
         let result = style.apply_inner("abc", true);
 
-        // If the OnceLock resolves to AppleTerminal, it must contain the combining characters
+        // it must contain the combining characters
         // e + \u{0336} instead of the ANSI escape code \x1b[9m
-        if crate::terminal::get_terminal_app() == TerminalApp::AppleTerminal {
-            assert!(result.contains('\u{0336}'));
-            assert!(!result.contains("\x1b[9m"));
-        }
+        assert!(result.contains('\u{0336}'));
+        assert!(!result.contains("\x1b[9m"));
     }
 
     #[test]
     fn apply_with_strikethrough_uses_ansi_escape_on_standard_terminals() {
         // Force the system to act as an Unknown/Standard terminal
         force_mock_terminal_app(Some(TerminalApp::Unknown));
+        force_mock_color_level(Some(ColorLevel::Ansi256));
+
         assert_eq!(get_terminal_app(), TerminalApp::Unknown);
+        assert_eq!(get_cached_level(), ColorLevel::Ansi256);
 
         let style = Style::new().strikethrough();
         let result = style.apply_inner("abc", true);
