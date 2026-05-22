@@ -3,7 +3,7 @@
 //! This example showcases how to use the declarative macros provided by `prettyt`
 //! for cleaner, inline terminal styling and formatting.
 
-use prettyt::{Color, make_style, println_styled};
+use prettyt::{Color, make_style, sprintln};
 
 fn main() {
     // =========================================================================
@@ -24,7 +24,7 @@ fn main() {
     println!();
 
     // =========================================================================
-    // High-Efficiency Inline Printing with `println_styled!`
+    // High-Efficiency Inline Printing with `sprintln!`
     // =========================================================================
 
     let info_style = make_style!(fg(Color::Cyan), bold);
@@ -32,13 +32,13 @@ fn main() {
 
     // Seamlessly handles string format interpolation arguments without
     // forcing manual allocation steps beforehand.
-    println_styled!(
+    sprintln!(
         info_style,
         "-> Launching cluster workers on local thread context node #{}",
         104
     );
 
-    println_styled!(
+    sprintln!(
         success_style,
         "-> Cluster synchronization status: {} (verified in {}s)",
         "OK",

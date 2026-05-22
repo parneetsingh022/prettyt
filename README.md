@@ -26,18 +26,18 @@ A lightweight, environment-aware terminal text styling library with automatic co
 ## Quick Start
 
 ### Inline Printing (Using Macros)
-Use the `println_styled!` macro to cleanly format and print styled text. It seamlessly handles native `format!` interpolation arguments directly, eliminating the need to manually build separate formatted strings beforehand:
+Use the `sprintln!` macro to cleanly format and print styled text. It seamlessly handles native `format!` interpolation arguments directly, eliminating the need to manually build separate formatted strings beforehand:
 ```rust
-use prettyt::{Color, make_style, println_styled};
+use prettyt::{Color, make_style, sprintln};
 
 fn main() {
     let info = make_style!(fg(Color::BrightCyan), bold);
     let success = make_style!(fg(Color::BrightGreen));
 
     // Pass format arguments smoothly into the macro
-    println_styled!(info, "-> Launching cluster workers on node #{}", 104);
+    sprintln!(info, "-> Launching cluster workers on node #{}", 104);
     
-    println_styled!(
+    sprintln!(
         success, 
         "-> Status: {} (verified in {}s)", 
         "OK", 
