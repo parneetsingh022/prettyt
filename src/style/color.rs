@@ -58,7 +58,10 @@ impl Color {
     /// # Panics
     /// Panics if the provided index is greater than 15.
     pub(crate) fn ansi16_from_u8(c: u8) -> Color {
-        Self::ANSI16_COLORS[c as usize]
+        Self::ANSI16_COLORS
+            .get(c as usize)
+            .copied()
+            .unwrap_or_else(|| panic!("ANSI16 color index out of range (expected 0..=15): {c}"))
     }
 
     pub(crate) fn map_ansi16(&self) -> Option<u8> {
