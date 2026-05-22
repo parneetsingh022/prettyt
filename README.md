@@ -82,10 +82,22 @@ fn main() {
 ## Colors
 ### ANSI16
 ```rust
-Color::RED
-Color::GREEN
-Color::BLUE
-Color::BRIGHT_CYAN
+Color::Black
+Color::Red
+Color::Green
+Color::Yellow
+Color::Blue
+Color::Magenta
+Color::Cyan
+Color::White
+Color::BrightBlack
+Color::BrightRed
+Color::BrightGreen
+Color::BrightYellow
+Color::BrightBlue
+Color::BrightMagenta
+Color::BrightCyan
+Color::BrightWhite
 ```
 
 ### ANSI256
