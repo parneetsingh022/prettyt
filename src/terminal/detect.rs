@@ -37,7 +37,7 @@ fn is_tty() -> bool {
 pub fn detect_color_level() -> ColorLevel {
     detect_color_level_inner(
         is_tty(),
-        env::var("NO_COLOR").is_ok(),
+        env::var_os("NO_COLOR").is_some(),
         env::var("FORCE_COLOR").ok().as_deref(),
         env::var("COLORTERM").ok().as_deref(),
         env::var("TERM").ok().as_deref(),
