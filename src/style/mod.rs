@@ -99,7 +99,7 @@ impl Style {
         self
     }
 
-    // Wraps the provided type with the built ANSI escape codes.
+    /// Wraps the provided type with the built ANSI escape codes.
     ///
     /// Accepts any type implementing [`Display`](std::fmt::Display). If color support is absent,
     /// it falls back gracefully to a standard unstyled string copy.
