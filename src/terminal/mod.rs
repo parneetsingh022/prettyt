@@ -55,3 +55,8 @@ pub mod registry;
 
 pub use detect::{ColorLevel, detect_color_level};
 pub(crate) use registry::get_cached_level;
+
+// Terminal Detection is used internally
+// I don't think there is a need for a public api at this point.
+mod app;
+pub(crate) use app::{TerminalApp, get_terminal_app};

@@ -8,7 +8,7 @@ pub mod macros;
 
 pub use self::color::Color;
 use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
-use crate::terminal::{ColorLevel, get_cached_level};
+use crate::terminal::{ColorLevel, TerminalApp, get_cached_level, get_terminal_app};
 
 /// A builder profile container storing terminal styling codes.
 ///
@@ -121,6 +121,23 @@ impl Style {
             return value.to_string();
         }
 
+        // Convert the input value into our working string allocation baseline
+        let mut working_string = value.to_string();
+
+        // FALLBACK: If strikethrough is requested on Apple Terminal, manually build
+        // the strikethrough layout using Unicode combining character streams.
+        if self.strikethrough && detect_color && get_terminal_app() == TerminalApp::AppleTerminal {
+            let mut fallback_string = String::with_capacity(working_string.len() * 2);
+            for c in working_string.chars() {
+                fallback_string.push(c);
+                // Skip control characters (like \x1b) so we don't inject strikethrough overlays into raw ANSI escape codes and corrupt them.
+                if !c.is_control() {
+                    fallback_string.push('\u{0336}');
+                }
+            }
+            working_string = fallback_string;
+        }
+
         let mut prefix = String::new();
 
         // GitHub tests do not have terminal/environment detection available, so use the
@@ -155,14 +172,21 @@ impl Style {
         if self.invert {
             prefix.push_str("\x1b[7m");
         }
+
+        // Native standard ANSI sequence addition execution
         if self.strikethrough {
-            prefix.push_str("\x1b[9m");
+            // If we didn't use the Unicode fallback engine (either because we are on a different
+            // terminal or because environment capability tracking is explicitly disabled in tests),
+            // safely append the standard ANSI formatting escape sequence.
+            if !detect_color || get_terminal_app() != TerminalApp::AppleTerminal {
+                prefix.push_str("\x1b[9m");
+            }
         }
 
         if prefix.is_empty() {
-            value.to_string()
+            working_string
         } else {
-            format!("{}{}\x1b[0m", prefix, value)
+            format!("{}{}\x1b[0m", prefix, working_string)
         }
     }
 }
