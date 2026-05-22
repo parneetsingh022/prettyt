@@ -25,8 +25,8 @@ A lightweight, environment-aware terminal text styling library with automatic co
 
 ## Quick Start
 
-1. Inline Printing (Using Macros)
-Use the `println_styled!` macro to cleanly format and print styled text. It seamlessly handles native format! interpolation arguments directly, eliminating the need to manually build separate formatted strings beforehand:
+### Inline Printing (Using Macros)
+Use the `println_styled!` macro to cleanly format and print styled text. It seamlessly handles native `format!` interpolation arguments directly, eliminating the need to manually build separate formatted strings beforehand:
 ```rust
 use prettyt::make_style;
 use prettyt::style::Color;
@@ -47,8 +47,8 @@ fn main() {
     );
 }
 ```
-2. Builder Style Formatting
-For finer control, you can build styles dynamically using the fluent builder API. The .apply() method accepts any type implementing std::fmt::Display (such as strings, integers, or floats) and returns an environment-aware styled string:
+### Builder Style Formatting
+For finer control, you can build styles dynamically using the fluent builder API. The `.apply()` method accepts any type implementing `std::fmt::Display` (such as strings, integers, or floats) and returns an environment-aware styled string:
 
 ```rust
 
