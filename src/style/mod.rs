@@ -25,7 +25,7 @@ use crate::terminal::{ColorLevel, get_cached_level};
 ///
 /// let configuration = Style::new()
 ///     .fg(Color::Ansi256(220))
-///     .bg(Color::BLACK)
+///     .bg(Color::Black)
 ///     .italic();
 ///
 /// println!("{}", configuration.apply("Standardized Output"));
@@ -190,28 +190,28 @@ mod tests {
 
     #[test]
     fn fg_sets_foreground_color() {
-        let style = Style::new().fg(Color::RED);
+        let style = Style::new().fg(Color::Red);
 
-        assert_eq!(style.fg, Some(Color::RED));
+        assert_eq!(style.fg, Some(Color::Red));
         assert_eq!(style.bg, None);
         assert!(!style.bold);
     }
 
     #[test]
     fn bg_sets_background_color() {
-        let style = Style::new().bg(Color::BLUE);
+        let style = Style::new().bg(Color::Blue);
 
         assert_eq!(style.fg, None);
-        assert_eq!(style.bg, Some(Color::BLUE));
+        assert_eq!(style.bg, Some(Color::Blue));
         assert!(!style.bold);
     }
 
     #[test]
     fn fg_and_bg_can_be_chained() {
-        let style = Style::new().fg(Color::RED).bg(Color::BLUE);
+        let style = Style::new().fg(Color::Red).bg(Color::Blue);
 
-        assert_eq!(style.fg, Some(Color::RED));
-        assert_eq!(style.bg, Some(Color::BLUE));
+        assert_eq!(style.fg, Some(Color::Red));
+        assert_eq!(style.bg, Some(Color::Blue));
     }
 
     #[test]
@@ -223,53 +223,53 @@ mod tests {
 
     #[test]
     fn apply_with_foreground_wraps_text_with_ansi_reset() {
-        let style = Style::new().fg(Color::RED);
+        let style = Style::new().fg(Color::Red);
 
         assert_eq!(
             style.apply_inner("hello", false),
             format!(
                 "{}hello\x1b[0m",
-                to_ansi_string_inner(Color::RED, Layer::Foreground)
+                to_ansi_string_inner(Color::Red, Layer::Foreground)
             )
         );
     }
 
     #[test]
     fn apply_with_background_wraps_text_with_ansi_reset() {
-        let style = Style::new().bg(Color::BLUE);
+        let style = Style::new().bg(Color::Blue);
 
         assert_eq!(
             style.apply_inner("hello", false),
             format!(
                 "{}hello\x1b[0m",
-                to_ansi_string_inner(Color::BLUE, Layer::Background)
+                to_ansi_string_inner(Color::Blue, Layer::Background)
             )
         );
     }
 
     #[test]
     fn apply_with_foreground_and_background_orders_fg_before_bg() {
-        let style = Style::new().fg(Color::RED).bg(Color::BLUE);
+        let style = Style::new().fg(Color::Red).bg(Color::Blue);
 
         assert_eq!(
             style.apply_inner("hello", false),
             format!(
                 "{}{}hello\x1b[0m",
-                to_ansi_string_inner(Color::RED, Layer::Foreground),
-                to_ansi_string_inner(Color::BLUE, Layer::Background),
+                to_ansi_string_inner(Color::Red, Layer::Foreground),
+                to_ansi_string_inner(Color::Blue, Layer::Background),
             )
         );
     }
 
     #[test]
     fn apply_accepts_any_display_value() {
-        let style = Style::new().fg(Color::GREEN);
+        let style = Style::new().fg(Color::Green);
 
         assert_eq!(
             style.apply_inner(42, false),
             format!(
                 "{}42\x1b[0m",
-                to_ansi_string_inner(Color::GREEN, Layer::Foreground)
+                to_ansi_string_inner(Color::Green, Layer::Foreground)
             )
         );
     }
@@ -285,10 +285,10 @@ mod tests {
 
     #[test]
     fn bold_can_be_chained_with_fg_and_bg() {
-        let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
+        let style = Style::new().fg(Color::Red).bg(Color::Blue).bold();
 
-        assert_eq!(style.fg, Some(Color::RED));
-        assert_eq!(style.bg, Some(Color::BLUE));
+        assert_eq!(style.fg, Some(Color::Red));
+        assert_eq!(style.bg, Some(Color::Blue));
         assert!(style.bold);
     }
 
@@ -301,14 +301,14 @@ mod tests {
 
     #[test]
     fn apply_with_foreground_background_and_bold_orders_bold_after_colors() {
-        let style = Style::new().fg(Color::RED).bg(Color::BLUE).bold();
+        let style = Style::new().fg(Color::Red).bg(Color::Blue).bold();
 
         assert_eq!(
             style.apply_inner("hello", false),
             format!(
                 "{}{}\x1b[1mhello\x1b[0m",
-                to_ansi_string_inner(Color::RED, Layer::Foreground),
-                to_ansi_string_inner(Color::BLUE, Layer::Background),
+                to_ansi_string_inner(Color::Red, Layer::Foreground),
+                to_ansi_string_inner(Color::Blue, Layer::Background),
             )
         );
     }
@@ -366,8 +366,8 @@ mod tests {
     #[test]
     fn all_styles_can_be_chained_with_fg_and_bg() {
         let style = Style::new()
-            .fg(Color::RED)
-            .bg(Color::BLUE)
+            .fg(Color::Red)
+            .bg(Color::Blue)
             .bold()
             .dim()
             .italic()
@@ -379,8 +379,8 @@ mod tests {
             style.apply_inner("hello", false),
             format!(
                 "{}{}\x1b[1m\x1b[2m\x1b[3m\x1b[4m\x1b[7m\x1b[9mhello\x1b[0m",
-                to_ansi_string_inner(Color::RED, Layer::Foreground),
-                to_ansi_string_inner(Color::BLUE, Layer::Background),
+                to_ansi_string_inner(Color::Red, Layer::Foreground),
+                to_ansi_string_inner(Color::Blue, Layer::Background),
             )
         );
     }

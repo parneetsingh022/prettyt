@@ -19,8 +19,8 @@
 //! use prettyt::println_styled;
 //!
 //! # fn main() {
-//! let info = make_style!(fg(Color::BRIGHT_CYAN), bold);
-//! let success = make_style!(fg(Color::BRIGHT_GREEN));
+//! let info = make_style!(fg(Color::BrightCyan), bold);
+//! let success = make_style!(fg(Color::BrightGreen));
 //!
 //! // Pass format arguments smoothly into the macro
 //! println_styled!(info, "-> Launching cluster workers on node #{}", 104);
@@ -41,8 +41,8 @@
 //! use prettyt::style::{Style, Color};
 //!
 //! # fn main() {
-//! let error_badge = Style::new().fg(Color::WHITE).bg(Color::RED).bold();
-//! let highlight = Style::new().fg(Color::CYAN).bold();
+//! let error_badge = Style::new().fg(Color::White).bg(Color::Red).bold();
+//! let highlight = Style::new().fg(Color::Cyan).bold();
 //!
 //! // Pass strings or numeric values seamlessly to .apply()
 //! println!("{} Database panic!", error_badge.apply(" PANIC "));

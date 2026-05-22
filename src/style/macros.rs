@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn test_make_style_colors() {
         // Test foreground and background assignment expansions
-        let s = make_style!(fg(Color::RED), bg(Color::BLUE));
+        let s = make_style!(fg(Color::Red), bg(Color::Blue));
 
         let formatted = s.apply_inner("hello", false);
         assert!(formatted.contains("hello"));
@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn test_make_style_chained_and_trailing_comma() {
         // Verifying multiple chained attributes and handling of trailing commas
-        let s = make_style!(fg(Color::GREEN), bold, italic, underline,);
+        let s = make_style!(fg(Color::Green), bold, italic, underline,);
 
         let formatted = s.apply_inner("hello", false);
         assert!(formatted.contains("\x1b[1m")); // bold
@@ -82,7 +82,7 @@ mod tests {
     fn test_println_styled_expansion() {
         // Since println_styled! calls println!, we can verify it compiles
         // cleanly and formats correctly using a valid style object.
-        let sample_style = Style::new().fg(Color::CYAN).bold();
+        let sample_style = Style::new().fg(Color::Cyan).bold();
 
         // This confirms the format string syntax arguments expansion compiles without issues
         println_styled!(

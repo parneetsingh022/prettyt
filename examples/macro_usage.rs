@@ -13,10 +13,10 @@ fn main() {
 
     // Combine structural text properties, foreground, and background colors.
     // Notice how trailing commas are seamlessly supported!
-    let critical_style = make_style!(fg(Color::RED), bg(Color::BLACK), bold, underline,);
+    let critical_style = make_style!(fg(Color::Red), bg(Color::Black), bold, underline,);
 
     let subtle_style = make_style!(fg(Color::Ansi256(244)), italic);
-    let alert_badge = make_style!(fg(Color::WHITE), bg(Color::RED), invert);
+    let alert_badge = make_style!(fg(Color::White), bg(Color::Red), invert);
 
     // Render using manual `.apply(...)` tracking
     println!("{}", critical_style.apply("CRITICAL DATABASE EXCEPTION"));
@@ -28,8 +28,8 @@ fn main() {
     // High-Efficiency Inline Printing with `println_styled!`
     // =========================================================================
 
-    let info_style = make_style!(fg(Color::CYAN), bold);
-    let success_style = make_style!(fg(Color::GREEN));
+    let info_style = make_style!(fg(Color::Cyan), bold);
+    let success_style = make_style!(fg(Color::Green));
 
     // Seamlessly handles string format interpolation arguments without
     // forcing manual allocation steps beforehand.

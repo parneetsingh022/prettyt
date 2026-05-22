@@ -1,27 +1,6 @@
 use crate::terminal::ColorLevel;
 use crate::terminal::registry::get_cached_level;
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BasicColor {
-    Black = 0,
-    Red = 1,
-    Green = 2,
-    Yellow = 3,
-    Blue = 4,
-    Magenta = 5,
-    Cyan = 6,
-    White = 7,
-    BrightBlack = 8,
-    BrightRed = 9,
-    BrightGreen = 10,
-    BrightYellow = 11,
-    BrightBlue = 12,
-    BrightMagenta = 13,
-    BrightCyan = 14,
-    BrightWhite = 15,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Layer {
     Foreground,
@@ -30,51 +9,78 @@ pub enum Layer {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
+    // 16 Standard ANSI colors
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+    BrightBlack,
+    BrightRed,
+    BrightGreen,
+    BrightYellow,
+    BrightBlue,
+    BrightMagenta,
+    BrightCyan,
+    BrightWhite,
+    // Extended variations
     Rgb(u8, u8, u8),
     Ansi256(u8),
-    Ansi16(BasicColor),
     None,
 }
 
 impl Color {
-    pub const BLACK: Color = Color::Ansi16(BasicColor::Black);
-    pub const RED: Color = Color::Ansi16(BasicColor::Red);
-    pub const GREEN: Color = Color::Ansi16(BasicColor::Green);
-    pub const YELLOW: Color = Color::Ansi16(BasicColor::Yellow);
-    pub const BLUE: Color = Color::Ansi16(BasicColor::Blue);
-    pub const MAGENTA: Color = Color::Ansi16(BasicColor::Magenta);
-    pub const CYAN: Color = Color::Ansi16(BasicColor::Cyan);
-    pub const WHITE: Color = Color::Ansi16(BasicColor::White);
+    /// Associated constant array mapping indices 0..=15 directly to Color variants.
+    pub(crate) const ANSI16_COLORS: [Color; 16] = [
+        Color::Black,
+        Color::Red,
+        Color::Green,
+        Color::Yellow,
+        Color::Blue,
+        Color::Magenta,
+        Color::Cyan,
+        Color::White,
+        Color::BrightBlack,
+        Color::BrightRed,
+        Color::BrightGreen,
+        Color::BrightYellow,
+        Color::BrightBlue,
+        Color::BrightMagenta,
+        Color::BrightCyan,
+        Color::BrightWhite,
+    ];
 
-    pub const BRIGHT_BLACK: Color = Color::Ansi16(BasicColor::BrightBlack);
-    pub const BRIGHT_RED: Color = Color::Ansi16(BasicColor::BrightRed);
-    pub const BRIGHT_GREEN: Color = Color::Ansi16(BasicColor::BrightGreen);
-    pub const BRIGHT_YELLOW: Color = Color::Ansi16(BasicColor::BrightYellow);
-    pub const BRIGHT_BLUE: Color = Color::Ansi16(BasicColor::BrightBlue);
-    pub const BRIGHT_MAGENTA: Color = Color::Ansi16(BasicColor::BrightMagenta);
-    pub const BRIGHT_CYAN: Color = Color::Ansi16(BasicColor::BrightCyan);
-    pub const BRIGHT_WHITE: Color = Color::Ansi16(BasicColor::BrightWhite);
-}
+    /// Reconstructs a top-level 16-color ANSI variant from a raw u8 index (0..=15).
+    ///
+    /// # Panics
+    /// Panics if the provided index is greater than 15.
+    pub(crate) fn ansi16_from_u8(c: u8) -> Color {
+        Self::ANSI16_COLORS[c as usize]
+    }
 
-pub(crate) fn ansi16_to_basic(n: u8) -> BasicColor {
-    match n {
-        0 => BasicColor::Black,
-        1 => BasicColor::Red,
-        2 => BasicColor::Green,
-        3 => BasicColor::Yellow,
-        4 => BasicColor::Blue,
-        5 => BasicColor::Magenta,
-        6 => BasicColor::Cyan,
-        7 => BasicColor::White,
-        8 => BasicColor::BrightBlack,
-        9 => BasicColor::BrightRed,
-        10 => BasicColor::BrightGreen,
-        11 => BasicColor::BrightYellow,
-        12 => BasicColor::BrightBlue,
-        13 => BasicColor::BrightMagenta,
-        14 => BasicColor::BrightCyan,
-        15 => BasicColor::BrightWhite,
-        _ => unreachable!(),
+    pub(crate) fn map_ansi16(&self) -> Option<u8> {
+        match self {
+            Color::Black => Some(0),
+            Color::Red => Some(1),
+            Color::Green => Some(2),
+            Color::Yellow => Some(3),
+            Color::Blue => Some(4),
+            Color::Magenta => Some(5),
+            Color::Cyan => Some(6),
+            Color::White => Some(7),
+            Color::BrightBlack => Some(8),
+            Color::BrightRed => Some(9),
+            Color::BrightGreen => Some(10),
+            Color::BrightYellow => Some(11),
+            Color::BrightBlue => Some(12),
+            Color::BrightMagenta => Some(13),
+            Color::BrightCyan => Some(14),
+            Color::BrightWhite => Some(15),
+            Color::Ansi256(_) | Color::Rgb(_, _, _) | Color::None => None,
+        }
     }
 }
 
@@ -94,7 +100,7 @@ pub(crate) fn rgb_to_ansi256(r: u8, g: u8, b: u8) -> u8 {
     16 + 36 * r + 6 * g + b
 }
 
-pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
+pub(crate) fn ansi256_to_ansi16(n: u8) -> Color {
     const ANSI16_RGB: [(u8, u8, u8); 16] = [
         (0, 0, 0),
         (205, 49, 49),
@@ -115,7 +121,7 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
     ];
 
     let rgb = match n {
-        0..=15 => return ansi16_to_basic(n),
+        0..=15 => return Color::ansi16_from_u8(n),
 
         16..=231 => {
             let x = n - 16;
@@ -140,10 +146,10 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
             let gray = 8 + (n - 232) * 10;
 
             return match gray {
-                0..=54 => BasicColor::Black,
-                55..=159 => BasicColor::BrightBlack,
-                160..=239 => BasicColor::White,
-                _ => BasicColor::BrightWhite,
+                0..=54 => Color::Black,
+                55..=159 => Color::BrightBlack,
+                160..=239 => Color::White,
+                _ => Color::BrightWhite,
             };
         }
     };
@@ -164,7 +170,7 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> BasicColor {
         }
     }
 
-    ansi16_to_basic(best)
+    Color::ansi16_from_u8(best)
 }
 
 fn get_appropriate_color_for_level(color: Color, level: ColorLevel) -> Color {
@@ -179,8 +185,8 @@ fn get_appropriate_color_for_level(color: Color, level: ColorLevel) -> Color {
         },
 
         ColorLevel::Basic => match color {
-            Color::Rgb(r, g, b) => Color::Ansi16(ansi256_to_ansi16(rgb_to_ansi256(r, g, b))),
-            Color::Ansi256(c) => Color::Ansi16(ansi256_to_ansi16(c)),
+            Color::Rgb(r, g, b) => ansi256_to_ansi16(rgb_to_ansi256(r, g, b)),
+            Color::Ansi256(c) => ansi256_to_ansi16(c),
             _ => color,
         },
     }
@@ -199,6 +205,17 @@ pub(crate) fn to_ansi_string(color: Color, layer: Layer) -> String {
 pub(crate) fn to_ansi_string_inner(color: Color, layer: Layer) -> String {
     let fg = matches!(layer, Layer::Foreground);
 
+    if let Some(n) = color.map_ansi16() {
+        let code = match (fg, n < 8) {
+            (true, true) => 30 + n,
+            (true, false) => 90 + (n - 8),
+            (false, true) => 40 + n,
+            (false, false) => 100 + (n - 8),
+        };
+
+        return format!("\x1b[{}m", code);
+    }
+
     match color {
         Color::None => String::new(),
 
@@ -212,18 +229,7 @@ pub(crate) fn to_ansi_string_inner(color: Color, layer: Layer) -> String {
             format!("\x1b[{};5;{}m", code, v)
         }
 
-        Color::Ansi16(c) => {
-            let n = c as u8;
-
-            let code = match (fg, n < 8) {
-                (true, true) => 30 + n,
-                (true, false) => 90 + (n - 8),
-                (false, true) => 40 + n,
-                (false, false) => 100 + (n - 8),
-            };
-
-            format!("\x1b[{}m", code)
-        }
+        _ => unreachable!(),
     }
 }
 
@@ -293,22 +299,22 @@ mod tests {
     #[test]
     fn ansi256_to_ansi16_keeps_ansi16_values() {
         let expected = [
-            BasicColor::Black,
-            BasicColor::Red,
-            BasicColor::Green,
-            BasicColor::Yellow,
-            BasicColor::Blue,
-            BasicColor::Magenta,
-            BasicColor::Cyan,
-            BasicColor::White,
-            BasicColor::BrightBlack,
-            BasicColor::BrightRed,
-            BasicColor::BrightGreen,
-            BasicColor::BrightYellow,
-            BasicColor::BrightBlue,
-            BasicColor::BrightMagenta,
-            BasicColor::BrightCyan,
-            BasicColor::BrightWhite,
+            Color::Black,
+            Color::Red,
+            Color::Green,
+            Color::Yellow,
+            Color::Blue,
+            Color::Magenta,
+            Color::Cyan,
+            Color::White,
+            Color::BrightBlack,
+            Color::BrightRed,
+            Color::BrightGreen,
+            Color::BrightYellow,
+            Color::BrightBlue,
+            Color::BrightMagenta,
+            Color::BrightCyan,
+            Color::BrightWhite,
         ];
 
         for (n, color) in expected.into_iter().enumerate() {
@@ -318,40 +324,37 @@ mod tests {
 
     #[test]
     fn ansi256_to_ansi16_maps_obvious_colors() {
-        assert_eq!(ansi256_to_ansi16(16), BasicColor::Black);
+        assert_eq!(ansi256_to_ansi16(16), Color::Black);
         assert!(matches!(
             ansi256_to_ansi16(196),
-            BasicColor::Red | BasicColor::BrightRed
+            Color::Red | Color::BrightRed
         ));
         assert!(matches!(
             ansi256_to_ansi16(46),
-            BasicColor::Green | BasicColor::BrightGreen
+            Color::Green | Color::BrightGreen
         ));
         assert!(matches!(
             ansi256_to_ansi16(21),
-            BasicColor::Blue | BasicColor::BrightBlue
+            Color::Blue | Color::BrightBlue
         ));
         assert!(matches!(
             ansi256_to_ansi16(226),
-            BasicColor::Yellow | BasicColor::BrightYellow
+            Color::Yellow | Color::BrightYellow
         ));
         assert!(matches!(
             ansi256_to_ansi16(201),
-            BasicColor::Magenta | BasicColor::BrightMagenta
+            Color::Magenta | Color::BrightMagenta
         ));
         assert!(matches!(
             ansi256_to_ansi16(51),
-            BasicColor::Cyan | BasicColor::BrightCyan
+            Color::Cyan | Color::BrightCyan
         ));
     }
 
-    fn is_gray(c: BasicColor) -> bool {
+    fn is_gray(c: Color) -> bool {
         matches!(
             c,
-            BasicColor::Black
-                | BasicColor::BrightBlack
-                | BasicColor::White
-                | BasicColor::BrightWhite
+            Color::Black | Color::BrightBlack | Color::White | Color::BrightWhite
         )
     }
 
@@ -378,7 +381,7 @@ mod tests {
         let color = ansi256_to_ansi16(rgb_to_ansi256(214, 108, 92));
 
         assert!(
-            !matches!(color, BasicColor::White | BasicColor::BrightWhite),
+            !matches!(color, Color::White | Color::BrightWhite),
             "warm reddish color should not map to white, got {:?}",
             color
         );
@@ -420,7 +423,7 @@ mod tests {
     #[test]
     fn ansi16_normal_foreground() {
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::Red), Layer::Foreground),
+            to_ansi_string_inner(Color::Red, Layer::Foreground),
             "\x1b[31m"
         );
     }
@@ -428,7 +431,7 @@ mod tests {
     #[test]
     fn ansi16_normal_background() {
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::Red), Layer::Background),
+            to_ansi_string_inner(Color::Red, Layer::Background),
             "\x1b[41m"
         );
     }
@@ -436,7 +439,7 @@ mod tests {
     #[test]
     fn ansi16_bright_foreground() {
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightRed), Layer::Foreground),
+            to_ansi_string_inner(Color::BrightRed, Layer::Foreground),
             "\x1b[91m"
         );
     }
@@ -444,7 +447,7 @@ mod tests {
     #[test]
     fn ansi16_bright_background() {
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightRed), Layer::Background),
+            to_ansi_string_inner(Color::BrightRed, Layer::Background),
             "\x1b[101m"
         );
     }
@@ -452,36 +455,36 @@ mod tests {
     #[test]
     fn ansi16_boundaries() {
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::Black), Layer::Foreground),
+            to_ansi_string_inner(Color::Black, Layer::Foreground),
             "\x1b[30m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::White), Layer::Foreground),
+            to_ansi_string_inner(Color::White, Layer::Foreground),
             "\x1b[37m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightBlack), Layer::Foreground),
+            to_ansi_string_inner(Color::BrightBlack, Layer::Foreground),
             "\x1b[90m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightWhite), Layer::Foreground),
+            to_ansi_string_inner(Color::BrightWhite, Layer::Foreground),
             "\x1b[97m"
         );
 
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::Black), Layer::Background),
+            to_ansi_string_inner(Color::Black, Layer::Background),
             "\x1b[40m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::White), Layer::Background),
+            to_ansi_string_inner(Color::White, Layer::Background),
             "\x1b[47m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightBlack), Layer::Background),
+            to_ansi_string_inner(Color::BrightBlack, Layer::Background),
             "\x1b[100m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi16(BasicColor::BrightWhite), Layer::Background),
+            to_ansi_string_inner(Color::BrightWhite, Layer::Background),
             "\x1b[107m"
         );
     }
@@ -501,7 +504,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_appropriate_color_for_level(Color::Ansi16(BasicColor::Red), ColorLevel::None),
+            get_appropriate_color_for_level(Color::Red, ColorLevel::None),
             Color::None
         );
     }
@@ -519,8 +522,8 @@ mod tests {
         );
 
         assert_eq!(
-            get_appropriate_color_for_level(Color::Ansi16(BasicColor::Red), ColorLevel::TrueColor),
-            Color::Ansi16(BasicColor::Red)
+            get_appropriate_color_for_level(Color::Red, ColorLevel::TrueColor),
+            Color::Red
         );
     }
 
@@ -540,8 +543,8 @@ mod tests {
         );
 
         assert_eq!(
-            get_appropriate_color_for_level(Color::Ansi16(BasicColor::Red), ColorLevel::Ansi256),
-            Color::Ansi16(BasicColor::Red)
+            get_appropriate_color_for_level(Color::Red, ColorLevel::Ansi256),
+            Color::Red
         );
     }
 
@@ -549,20 +552,20 @@ mod tests {
     fn basic_converts_rgb_and_ansi256_to_ansi16() {
         assert!(matches!(
             get_appropriate_color_for_level(Color::Rgb(255, 0, 0), ColorLevel::Basic),
-            Color::Ansi16(BasicColor::Red | BasicColor::BrightRed)
+            Color::Red | Color::BrightRed
         ));
 
         assert!(matches!(
             get_appropriate_color_for_level(Color::Ansi256(196), ColorLevel::Basic),
-            Color::Ansi16(BasicColor::Red | BasicColor::BrightRed)
+            Color::Red | Color::BrightRed
         ));
     }
 
     #[test]
     fn basic_keeps_ansi16() {
         assert_eq!(
-            get_appropriate_color_for_level(Color::Ansi16(BasicColor::Red), ColorLevel::Basic),
-            Color::Ansi16(BasicColor::Red)
+            get_appropriate_color_for_level(Color::Red, ColorLevel::Basic),
+            Color::Red
         );
     }
 

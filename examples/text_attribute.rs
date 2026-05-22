@@ -2,10 +2,10 @@ use prettyt::style::{Color, Style};
 
 fn main() {
     // --- Advanced Typography and Text Attributes ---
-    let title = Style::new().fg(Color::CYAN).bold().underline();
-    let notice = Style::new().fg(Color::WHITE).italic();
-    let old_price = Style::new().fg(Color::BRIGHT_BLACK).strikethrough();
-    let new_price = Style::new().fg(Color::BRIGHT_GREEN).bold();
+    let title = Style::new().fg(Color::Cyan).bold().underline();
+    let notice = Style::new().fg(Color::White).italic();
+    let old_price = Style::new().fg(Color::BrightBlack).strikethrough();
+    let new_price = Style::new().fg(Color::BrightGreen).bold();
     let metadata = Style::new().dim(); // Faint/decreased intensity
 
     println!("{}", title.apply("--- PRODUCT DISPATCH REPORT ---"));
@@ -30,11 +30,11 @@ fn main() {
     // --- Reverse Video / Inversion ---
     // Great for highlighted blocks, notifications, or text selections
     let alert_badge = Style::new()
-        .fg(Color::BRIGHT_YELLOW)
-        .bg(Color::BLACK)
+        .fg(Color::BrightYellow)
+        .bg(Color::Black)
         .invert(); // Swaps fg and bg colors natively
 
-    let normal_text = Style::new().fg(Color::WHITE);
+    let normal_text = Style::new().fg(Color::White);
 
     println!(
         "{} {}",
