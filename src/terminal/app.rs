@@ -5,6 +5,9 @@
 
 use std::sync::OnceLock;
 
+#[cfg(test)]
+use std::sync::Mutex;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TerminalApp {
     AppleTerminal,
@@ -13,7 +16,7 @@ pub(crate) enum TerminalApp {
 
 // A test-only mutable static configuration layer to hold our mock target override
 #[cfg(test)]
-static mut MOCK_APP_OVERRIDE: Option<TerminalApp> = None;
+static MOCK_APP_OVERRIDE: Mutex<Option<TerminalApp>> = Mutex::new(None);
 
 static TERMINAL_APP: OnceLock<TerminalApp> = OnceLock::new();
 
@@ -31,17 +34,14 @@ fn detect_terminal_app_internal() -> TerminalApp {
 /// A test-only mock override that bypasses environment checks completely.
 #[cfg(test)]
 pub(crate) fn force_mock_terminal_app(app: Option<TerminalApp>) {
-    // Safety: This static is only used during single-threaded test execution blocks
-    unsafe {
-        MOCK_APP_OVERRIDE = app;
-    }
+    *MOCK_APP_OVERRIDE.lock().unwrap() = app;
 }
 
 pub(crate) fn get_terminal_app() -> TerminalApp {
     // If a mock override is explicitly set in a test context, return it directly
     #[cfg(test)]
-    unsafe {
-        if let Some(mocked_app) = MOCK_APP_OVERRIDE {
+    {
+        if let Some(mocked_app) = *MOCK_APP_OVERRIDE.lock().unwrap() {
             return mocked_app;
         }
     }
