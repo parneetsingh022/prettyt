@@ -1,7 +1,7 @@
 //! Terminal emulator identification profiling.
 //!
 //! We can add terminal specific features by detecting which
-//! terminal we running on.
+//! terminal we are running on.
 
 use std::sync::OnceLock;
 
