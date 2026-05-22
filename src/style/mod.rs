@@ -132,10 +132,23 @@ impl Style {
         // the strikethrough layout using Unicode combining character streams.
         if self.strikethrough && detect_color && get_terminal_app() == TerminalApp::AppleTerminal {
             let mut fallback_string = String::with_capacity(working_string.len() * 2);
+
+            // help to prevent striking thorugh ANSI-code in the string
+            let mut in_ansi: bool = false;
+
             for c in working_string.chars() {
                 fallback_string.push(c);
+
+                // Track if we are inside an ANSI escape sequence (\x1b...m)
+                // so we don't inject strikethrough characters into formatting codes and corrupt them.
+                if c == '\x1b' {
+                    in_ansi = true
+                } else if c == 'm' && in_ansi {
+                    in_ansi = false;
+                    continue;
+                }
                 // Skip control characters (like \x1b) so we don't inject strikethrough overlays into raw ANSI escape codes and corrupt them.
-                if !c.is_control() {
+                if !c.is_control() && !in_ansi {
                     fallback_string.push('\u{0336}');
                 }
             }
@@ -436,6 +449,9 @@ mod tests {
         // e + \u{0336} instead of the ANSI escape code \x1b[9m
         assert!(result.contains('\u{0336}'));
         assert!(!result.contains("\x1b[9m"));
+
+        force_mock_terminal_app(None);
+        force_mock_color_level(None);
     }
 
     #[test]
@@ -456,5 +472,39 @@ mod tests {
 
         // Clear mock state
         force_mock_terminal_app(None);
+        force_mock_color_level(None);
+    }
+
+    #[test]
+    fn apply_with_strikethrough_preserves_nested_ansi_escape_sequences_in_apple_terminal() {
+        use crate::terminal::app::{TerminalApp, force_mock_terminal_app};
+        use crate::terminal::registry::force_mock_color_level;
+
+        // Force Apple Terminal context and mock color capability to TrueColor
+        force_mock_terminal_app(Some(TerminalApp::AppleTerminal));
+        force_mock_color_level(Some(ColorLevel::TrueColor));
+
+        assert_eq!(get_terminal_app(), TerminalApp::AppleTerminal);
+        assert_eq!(get_cached_level(), ColorLevel::TrueColor);
+
+        // Build an input string that already contains a standard ANSI color code sequence (\x1b[31m)
+        // This emulates styling text that has already been colored by another formatting pass.
+        let colored_text = "\x1b[31mtest\x1b[0m".to_string();
+        let style = Style::new().strikethrough();
+
+        // Evaluate mapping with detect_color set to false to force execution in headless environments
+        let result = style.apply_inner(colored_text, true);
+
+        // Verify that the raw formatting escape blocks remained completely clean and uncorrupted
+        assert!(result.contains("\x1b[31m"));
+        assert!(result.contains("\x1b[0m"));
+
+        // Verify that the printable characters inside the sequence were successfully struck through
+        // The text sequence should emerge transformed cleanly as: t + \u{0336} + e + \u{0336} ...
+        assert!(result.contains("t\u{0336}e\u{0336}s\u{0336}t\u{0336}"));
+
+        // Reset mock state to keep the parallel test runners fully isolated
+        force_mock_terminal_app(None);
+        force_mock_color_level(None);
     }
 }
