@@ -9,5 +9,5 @@ All notable changes to this project will be documented in this file. This projec
 * **Smart Downsampling:** Automatic fallback math to translate rich RGB colors down to 256 or 16 colors depending on terminal support.
 * **Environment Detection:** Strict compliance with `NO_COLOR`, `FORCE_COLOR`, TTY status checking (`stdout.is_terminal()`), `COLORTERM`, and `TERM`.
 * **Fluent API:** Builder pattern interface (`Style::new()`) to programmatically stack properties like colors, bold, italic, underline, dim, strikethrough, and inversion.
-* **Logging Macros:** `make_style!` for declarative style creation and `sprintln!` for direct, zero-allocation formatting output.
+* **Logging Macros:** `make_style!` for declarative style creation and `sprintln!` for direct formatting output.
 * **Performance:** Zero external dependencies and thread-safe environment caching via `OnceLock`.
