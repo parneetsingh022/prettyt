@@ -101,8 +101,7 @@ Color::Rgb(255, 120, 0)
 
 ## Combining Styles
 ```rust
-use prettyt::style::Color;
-use prettyt::make_style;
+use prettyt::{Color, make_style};
 
 fn main() {
     let style = make_style!(
