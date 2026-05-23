@@ -133,7 +133,7 @@ impl Style {
         if self.strikethrough && detect_color && get_terminal_app() == TerminalApp::AppleTerminal {
             let mut fallback_string = String::with_capacity(working_string.len() * 2);
 
-            // help to prevent striking thorugh ANSI-code in the string
+            // help to prevent striking through ANSI-code in the string
             let mut in_ansi: bool = false;
 
             for c in working_string.chars() {
