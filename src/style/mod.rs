@@ -440,7 +440,6 @@ mod tests {
         // matches or mock the underlying detection if you want to test it in pure isolation.
         let style = Style::new().strikethrough();
 
-        // Evaluate text format mapping with detect_color set to true
         let result = style.apply_inner("abc", true);
 
         // it must contain the combining characters
@@ -480,7 +479,6 @@ mod tests {
         let colored_text = "\x1b[31mtest\x1b[0m".to_string();
         let style = Style::new().strikethrough();
 
-        // Evaluate mapping with detect_color set to false to force execution in headless environments
         let result = style.apply_inner(colored_text, true);
 
         // Verify that the raw formatting escape blocks remained completely clean and uncorrupted
