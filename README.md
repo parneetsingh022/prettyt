@@ -117,8 +117,8 @@ use prettyt::{Color, make_style};
 
 fn main() {
     let style = make_style!(
-        fg(Color::BRIGHT_MAGENTA),
-        bg(Color::BLACK),
+        fg(Color::BrightMagenta),
+        bg(Color::Black),
         bold,
         underline
     );
