@@ -212,8 +212,7 @@ impl Style {
 mod tests {
     use super::*;
     use crate::terminal::TerminalApp;
-    use crate::terminal::app::force_mock_terminal_app;
-    use crate::terminal::registry::force_mock_color_level;
+    use crate::test_utils::MockTerminalGuard;
 
     #[test]
     fn new_returns_default_style() {
@@ -431,8 +430,7 @@ mod tests {
 
     #[test]
     fn apply_with_strikethrough_uses_unicode_fallback_on_apple_terminal() {
-        force_mock_terminal_app(Some(TerminalApp::AppleTerminal));
-        force_mock_color_level(Some(ColorLevel::Ansi256));
+        let _guard = MockTerminalGuard::acquire(TerminalApp::AppleTerminal, ColorLevel::Ansi256);
 
         assert_eq!(get_terminal_app(), TerminalApp::AppleTerminal);
         assert_eq!(get_cached_level(), ColorLevel::Ansi256);
@@ -449,16 +447,12 @@ mod tests {
         // e + \u{0336} instead of the ANSI escape code \x1b[9m
         assert!(result.contains('\u{0336}'));
         assert!(!result.contains("\x1b[9m"));
-
-        force_mock_terminal_app(None);
-        force_mock_color_level(None);
     }
 
     #[test]
     fn apply_with_strikethrough_uses_ansi_escape_on_standard_terminals() {
         // Force the system to act as an Unknown/Standard terminal
-        force_mock_terminal_app(Some(TerminalApp::Unknown));
-        force_mock_color_level(Some(ColorLevel::Ansi256));
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::Ansi256);
 
         assert_eq!(get_terminal_app(), TerminalApp::Unknown);
         assert_eq!(get_cached_level(), ColorLevel::Ansi256);
@@ -469,20 +463,14 @@ mod tests {
         // Verify that it uses standard ANSI strings on standard platforms
         assert!(result.contains("\x1b[9m"));
         assert!(!result.contains('\u{0336}'));
-
-        // Clear mock state
-        force_mock_terminal_app(None);
-        force_mock_color_level(None);
     }
 
     #[test]
     fn apply_with_strikethrough_preserves_nested_ansi_escape_sequences_in_apple_terminal() {
-        use crate::terminal::app::{TerminalApp, force_mock_terminal_app};
-        use crate::terminal::registry::force_mock_color_level;
+        use crate::terminal::app::TerminalApp;
 
         // Force Apple Terminal context and mock color capability to TrueColor
-        force_mock_terminal_app(Some(TerminalApp::AppleTerminal));
-        force_mock_color_level(Some(ColorLevel::TrueColor));
+        let _guard = MockTerminalGuard::acquire(TerminalApp::AppleTerminal, ColorLevel::TrueColor);
 
         assert_eq!(get_terminal_app(), TerminalApp::AppleTerminal);
         assert_eq!(get_cached_level(), ColorLevel::TrueColor);
@@ -502,9 +490,5 @@ mod tests {
         // Verify that the printable characters inside the sequence were successfully struck through
         // The text sequence should emerge transformed cleanly as: t + \u{0336} + e + \u{0336} ...
         assert!(result.contains("t\u{0336}e\u{0336}s\u{0336}t\u{0336}"));
-
-        // Reset mock state to keep the parallel test runners fully isolated
-        force_mock_terminal_app(None);
-        force_mock_color_level(None);
     }
 }
