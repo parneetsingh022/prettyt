@@ -53,3 +53,6 @@ pub mod style;
 pub mod terminal;
 
 pub use style::{Color, Style};
+
+#[cfg(test)]
+mod test_utils;

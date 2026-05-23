@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+* **Apple Terminal Strikethrough Fallback:** Implemented an automated fallback engine for macOS Terminal.app that dynamically embeds Unicode combining long stroke characters (`\u{0336}`) through printable text strings to resolve its native lack of `\x1b[9m` ANSI sequence support.
+
 ## [0.1.0] - 2026-05-22
 
 ### Added
