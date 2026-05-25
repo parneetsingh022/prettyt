@@ -56,7 +56,7 @@ fn main() {
     let error_badge = Style::new().fg(Color::White).bg(Color::Red).bold();
     let highlight = Style::new().fg(Color::Cyan).bold();
 
-    // Pass strings or numeric values seamlessly to .apply()
+    // Pass string literals directly, or pass numeric references allocation-free
     println!("{} Database panic!", error_badge.apply(" PANIC "));
     println!("Returned error code: {}", highlight.apply(&500));
 }
