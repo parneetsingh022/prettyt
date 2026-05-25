@@ -23,13 +23,15 @@ macro_rules! make_style {
 #[macro_export]
 macro_rules! sprintln {
     ($style:expr, $fmt:expr $(, $($arg:tt)*)?) => {
-        println!("{}", $style.apply(format_args!($fmt $(, $($arg)*)?)));
+        println!("{}", $style.apply(&format_args!($fmt $(, $($arg)*)?)));
     };
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::style::{Color, Style};
+    use crate::style::{Color, ColorLevel, Style};
+    use crate::terminal::TerminalApp;
+    use crate::test_utils::MockTerminalGuard;
 
     #[test]
     fn test_make_style_empty() {
@@ -40,42 +42,31 @@ mod tests {
 
     #[test]
     fn test_make_style_single_attributes() {
-        // Test simple standalone attributes
-        assert!(
-            make_style!(bold)
-                .apply_inner("test", false)
-                .contains("\x1b[1m")
-        );
-        assert!(
-            make_style!(italic)
-                .apply_inner("test", false)
-                .contains("\x1b[3m")
-        );
-        assert!(
-            make_style!(underline)
-                .apply_inner("test", false)
-                .contains("\x1b[4m")
-        );
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+
+        assert!(format!("{}", make_style!(bold).apply("test")).contains("\x1b[1m"));
+        assert!(format!("{}", make_style!(italic).apply("test")).contains("\x1b[3m"));
+        assert!(format!("{}", make_style!(underline).apply("test")).contains("\x1b[4m"));
     }
 
     #[test]
     fn test_make_style_colors() {
-        // Test foreground and background assignment expansions
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         let s = make_style!(fg(Color::Red), bg(Color::Blue));
 
-        let formatted = s.apply_inner("hello", false);
+        let formatted = format!("{}", s.apply("hello"));
         assert!(formatted.contains("hello"));
     }
 
     #[test]
     fn test_make_style_chained_and_trailing_comma() {
-        // Verifying multiple chained attributes and handling of trailing commas
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         let s = make_style!(fg(Color::Green), bold, italic, underline,);
 
-        let formatted = s.apply_inner("hello", false);
-        assert!(formatted.contains("\x1b[1m")); // bold
-        assert!(formatted.contains("\x1b[3m")); // italic
-        assert!(formatted.contains("\x1b[4m")); // underline
+        let formatted = format!("{}", s.apply("hello"));
+        assert!(formatted.contains("\x1b[1m"));
+        assert!(formatted.contains("\x1b[3m"));
+        assert!(formatted.contains("\x1b[4m"));
     }
 
     #[test]

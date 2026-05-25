@@ -58,7 +58,7 @@ fn main() {
 
     // Pass strings or numeric values seamlessly to .apply()
     println!("{} Database panic!", error_badge.apply(" PANIC "));
-    println!("Returned error code: {}", highlight.apply(500));
+    println!("Returned error code: {}", highlight.apply(&500));
 }
 
 ```

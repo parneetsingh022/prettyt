@@ -51,6 +51,6 @@ fn main() {
 
     // --- Numeric values work too ---
     let highlight = Style::new().fg(Color::Cyan).bold();
-    println!("Result:   {}", highlight.apply(42));
-    println!("Uptime:   {}", highlight.apply(99.97));
+    println!("Result:   {}", highlight.apply(&42));
+    println!("Uptime:   {}", highlight.apply(&99.97));
 }

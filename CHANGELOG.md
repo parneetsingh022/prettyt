@@ -7,6 +7,11 @@ All notable changes to this project will be documented in this file. This projec
 ### Added
 * **Apple Terminal Strikethrough Fallback:** Implemented an automated fallback engine for macOS Terminal.app that dynamically embeds Unicode combining long stroke characters (`\u{0336}`) through printable text strings to resolve its native lack of `\x1b[9m` ANSI sequence support.
 
+* **Zero-Allocation Lazy Evaluation:** Introduced `StyledRef` to lazily stream ANSI text styling configurations directly to formatting targets via `fmt::Display` implementation, completely eliminating heap allocations on formatting passes.
+
+### Breaking Changes
+* **Reference-Bound `Style::apply` API:** The signature of `Style::apply` now accepts arguments by shared reference (`&T`) instead of taking ownership by value. Passing owned primitives or numeric constants manually now explicitly requires a reference borrow prefix (e.g., `style.apply(&34)` instead of `style.apply(34)`). Normal string literals remain unaffected as they naturally satisfy the reference type bound (`&str`).
+
 ## [0.1.0] - 2026-05-22
 
 ### Added
