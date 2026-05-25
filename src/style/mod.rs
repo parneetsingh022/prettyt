@@ -68,7 +68,7 @@ impl<'a, T: fmt::Display + ?Sized> fmt::Display for StyledRef<'a, T> {
             fmt::Display::fmt(self.value, f)?;
         }
 
-        // 3. Write the final ANSI reset sequence
+        // Append the final ANSI reset sequence
         f.write_str("\x1b[0m")?;
 
         Ok(())
