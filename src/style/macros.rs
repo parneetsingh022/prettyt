@@ -29,8 +29,8 @@ macro_rules! sprintln {
 
 #[cfg(test)]
 mod tests {
-    use crate::style::{Color, ColorLevel, Style};
-    use crate::terminal::TerminalApp;
+    use crate::style::{Color, Style};
+    use crate::terminal::{ColorLevel, TerminalApp};
     use crate::test_utils::MockTerminalGuard;
 
     #[test]
