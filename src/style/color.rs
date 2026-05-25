@@ -255,8 +255,8 @@ pub(crate) fn to_ansi_string_for_test(color: Color, layer: Layer) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::style::{Color, ColorLevel};
-    use crate::terminal::TerminalApp;
+    use crate::style::Color;
+    use crate::terminal::{ColorLevel, TerminalApp};
     use crate::test_utils::MockTerminalGuard;
     // !!!! rgb_to_ansi256
     #[test]
