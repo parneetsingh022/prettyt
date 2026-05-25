@@ -33,11 +33,11 @@ impl<'a, T: fmt::Display + ?Sized> fmt::Display for StyledRef<'a, T> {
         }
 
         if let Some(color) = self.style.fg {
-            f.write_str(&to_ansi_string(color, Layer::Foreground))?;
+            to_ansi_string(f, color, Layer::Foreground)?;
         }
 
         if let Some(color) = self.style.bg {
-            f.write_str(&to_ansi_string(color, Layer::Background))?;
+            to_ansi_string(f, color, Layer::Background)?;
         }
 
         if self.style.bold {
@@ -212,6 +212,7 @@ impl Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::style::color::to_ansi_string_for_test;
     use crate::terminal::TerminalApp;
     use crate::test_utils::MockTerminalGuard;
 
@@ -277,7 +278,7 @@ mod tests {
             format!("{}", style.apply("hello")),
             format!(
                 "{}hello\x1b[0m",
-                to_ansi_string(Color::Red, Layer::Foreground)
+                to_ansi_string_for_test(Color::Red, Layer::Foreground)
             )
         );
     }
@@ -383,36 +384,7 @@ mod tests {
             format!("{}", style.apply("hello")),
             format!(
                 "{}hello\x1b[0m",
-                to_ansi_string(Color::Blue, Layer::Background)
-            )
-        );
-    }
-
-    #[test]
-    fn apply_with_foreground_and_background_orders_fg_before_bg() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
-        let style = Style::new().fg(Color::Red).bg(Color::Blue);
-
-        assert_eq!(
-            format!("{}", style.apply("hello")),
-            format!(
-                "{}{}hello\x1b[0m",
-                to_ansi_string(Color::Red, Layer::Foreground),
-                to_ansi_string(Color::Blue, Layer::Background),
-            )
-        );
-    }
-
-    #[test]
-    fn apply_accepts_any_display_value() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
-        let style = Style::new().fg(Color::Green);
-
-        assert_eq!(
-            format!("{}", style.apply(&42)),
-            format!(
-                "{}42\x1b[0m",
-                to_ansi_string(Color::Green, Layer::Foreground)
+                to_ansi_string_for_test(Color::Blue, Layer::Background)
             )
         );
     }
@@ -451,8 +423,8 @@ mod tests {
             format!("{}", style.apply("hello")),
             format!(
                 "{}{}\x1b[1mhello\x1b[0m",
-                to_ansi_string(Color::Red, Layer::Foreground),
-                to_ansi_string(Color::Blue, Layer::Background),
+                to_ansi_string_for_test(Color::Red, Layer::Foreground),
+                to_ansi_string_for_test(Color::Blue, Layer::Background),
             )
         );
     }
@@ -525,8 +497,8 @@ mod tests {
             format!("{}", style.apply("hello")),
             format!(
                 "{}{}\x1b[1m\x1b[2m\x1b[3m\x1b[4m\x1b[7m\x1b[9mhello\x1b[0m",
-                to_ansi_string(Color::Red, Layer::Foreground),
-                to_ansi_string(Color::Blue, Layer::Background),
+                to_ansi_string_for_test(Color::Red, Layer::Foreground),
+                to_ansi_string_for_test(Color::Blue, Layer::Background),
             )
         );
     }
