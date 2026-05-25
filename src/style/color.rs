@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::terminal::ColorLevel;
 use crate::terminal::registry::get_cached_level;
 
@@ -199,13 +201,13 @@ pub(crate) fn get_appropriate_color(color: Color) -> Color {
     get_appropriate_color_for_level(color, get_cached_level())
 }
 
-pub(crate) fn to_ansi_string(color: Color, layer: Layer) -> String {
+pub(crate) fn to_ansi_string(
+    f: &mut fmt::Formatter<'_>,
+    color: Color,
+    layer: Layer,
+) -> fmt::Result {
     let color = get_appropriate_color(color);
 
-    to_ansi_string_inner(color, layer)
-}
-
-pub(crate) fn to_ansi_string_inner(color: Color, layer: Layer) -> String {
     let fg = matches!(layer, Layer::Foreground);
 
     if let Some(n) = color.map_ansi16() {
@@ -216,20 +218,20 @@ pub(crate) fn to_ansi_string_inner(color: Color, layer: Layer) -> String {
             (false, false) => 100 + (n - 8),
         };
 
-        return format!("\x1b[{}m", code);
+        return write!(f, "\x1b[{}m", code);
     }
 
     match color {
-        Color::None => String::new(),
+        Color::None => Ok(()),
 
         Color::Rgb(r, g, b) => {
             let code = if fg { 38 } else { 48 };
-            format!("\x1b[{};2;{};{};{}m", code, r, g, b)
+            write!(f, "\x1b[{};2;{};{};{}m", code, r, g, b)
         }
 
         Color::Ansi256(v) => {
             let code = if fg { 38 } else { 48 };
-            format!("\x1b[{};5;{}m", code, v)
+            write!(f, "\x1b[{};5;{}m", code, v)
         }
 
         _ => unreachable!(),
@@ -237,8 +239,25 @@ pub(crate) fn to_ansi_string_inner(color: Color, layer: Layer) -> String {
 }
 
 #[cfg(test)]
+pub(crate) fn to_ansi_string_for_test(color: Color, layer: Layer) -> String {
+    struct Wrapper {
+        color: Color,
+        layer: Layer,
+    }
+    impl std::fmt::Display for Wrapper {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            to_ansi_string(f, self.color, self.layer)
+        }
+    }
+    format!("{}", Wrapper { color, layer })
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::style::Color;
+    use crate::terminal::{ColorLevel, TerminalApp};
+    use crate::test_utils::MockTerminalGuard;
     // !!!! rgb_to_ansi256
     #[test]
     fn rgb_to_ansi256_black() {
@@ -393,101 +412,110 @@ mod tests {
 
     #[test]
     fn rgb_foreground() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         assert_eq!(
-            to_ansi_string_inner(Color::Rgb(255, 128, 0), Layer::Foreground),
+            to_ansi_string_for_test(Color::Rgb(255, 128, 0), Layer::Foreground),
             "\x1b[38;2;255;128;0m"
         );
     }
 
     #[test]
     fn rgb_background() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         assert_eq!(
-            to_ansi_string_inner(Color::Rgb(255, 128, 0), Layer::Background),
+            to_ansi_string_for_test(Color::Rgb(255, 128, 0), Layer::Background),
             "\x1b[48;2;255;128;0m"
         );
     }
 
     #[test]
     fn ansi256_foreground() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi256(196), Layer::Foreground),
+            to_ansi_string_for_test(Color::Ansi256(196), Layer::Foreground),
             "\x1b[38;5;196m"
         );
     }
-
     #[test]
     fn ansi256_background() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         assert_eq!(
-            to_ansi_string_inner(Color::Ansi256(196), Layer::Background),
+            to_ansi_string_for_test(Color::Ansi256(196), Layer::Background),
             "\x1b[48;5;196m"
         );
     }
 
     #[test]
     fn ansi16_normal_foreground() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         assert_eq!(
-            to_ansi_string_inner(Color::Red, Layer::Foreground),
+            to_ansi_string_for_test(Color::Red, Layer::Foreground),
             "\x1b[31m"
         );
     }
 
     #[test]
     fn ansi16_normal_background() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         assert_eq!(
-            to_ansi_string_inner(Color::Red, Layer::Background),
+            to_ansi_string_for_test(Color::Red, Layer::Background),
             "\x1b[41m"
         );
     }
 
     #[test]
     fn ansi16_bright_foreground() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         assert_eq!(
-            to_ansi_string_inner(Color::BrightRed, Layer::Foreground),
+            to_ansi_string_for_test(Color::BrightRed, Layer::Foreground),
             "\x1b[91m"
         );
     }
 
     #[test]
     fn ansi16_bright_background() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         assert_eq!(
-            to_ansi_string_inner(Color::BrightRed, Layer::Background),
+            to_ansi_string_for_test(Color::BrightRed, Layer::Background),
             "\x1b[101m"
         );
     }
 
     #[test]
     fn ansi16_boundaries() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+
         assert_eq!(
-            to_ansi_string_inner(Color::Black, Layer::Foreground),
+            to_ansi_string_for_test(Color::Black, Layer::Foreground),
             "\x1b[30m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::White, Layer::Foreground),
+            to_ansi_string_for_test(Color::White, Layer::Foreground),
             "\x1b[37m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::BrightBlack, Layer::Foreground),
+            to_ansi_string_for_test(Color::BrightBlack, Layer::Foreground),
             "\x1b[90m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::BrightWhite, Layer::Foreground),
+            to_ansi_string_for_test(Color::BrightWhite, Layer::Foreground),
             "\x1b[97m"
         );
 
         assert_eq!(
-            to_ansi_string_inner(Color::Black, Layer::Background),
+            to_ansi_string_for_test(Color::Black, Layer::Background),
             "\x1b[40m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::White, Layer::Background),
+            to_ansi_string_for_test(Color::White, Layer::Background),
             "\x1b[47m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::BrightBlack, Layer::Background),
+            to_ansi_string_for_test(Color::BrightBlack, Layer::Background),
             "\x1b[100m"
         );
         assert_eq!(
-            to_ansi_string_inner(Color::BrightWhite, Layer::Background),
+            to_ansi_string_for_test(Color::BrightWhite, Layer::Background),
             "\x1b[107m"
         );
     }

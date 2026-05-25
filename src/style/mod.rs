@@ -6,9 +6,133 @@
 pub mod color;
 pub mod macros;
 
+use core::fmt;
+
 pub use self::color::Color;
-use self::color::{Layer, to_ansi_string, to_ansi_string_inner};
+use self::color::{Layer, to_ansi_string};
 use crate::terminal::{ColorLevel, TerminalApp, get_cached_level, get_terminal_app};
+
+/// A lazy, zero-allocation wrapper that binds a [`Style`] configuration to a value.
+///
+/// This type is returned by [`Style::apply`]. It does not perform any text processing
+/// or string allocations upon creation. Instead, it implements [`fmt::Display`],
+/// deferring the evaluation of ANSI escape sequences until the wrapper is explicitly
+/// streamed into a formatting funnel (like `println!`, `format!`, or `write!`).
+///
+/// # Technical Notes
+///
+/// * **Zero-Allocation:** It purely holds a copied copy of the stack-allocated [`Style`]
+///   and a borrowed reference to the underlying data.
+/// * **Stream-Pass:** Calling `.to_string()` on this type *will* cause an allocation
+///   inherent to creating a new `String`. To preserve zero-allocation performance,
+///   pass this struct directly into formatting macros.
+pub struct StyledRef<'a, T: fmt::Display + ?Sized> {
+    style: Style,
+    value: &'a T,
+}
+
+impl<'a, T: fmt::Display + ?Sized> fmt::Display for StyledRef<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Both fg and bg should have a value and they also can't be Color::None.
+        // This check is necessary because if user tries Color::None with both fg and bg
+        // the code will append ending ansi character `\x1b[0m` otherwise.
+        let is_fg = self.style.fg.is_some() && (self.style.fg != Some(Color::None));
+        let is_bg = self.style.bg.is_some() && (self.style.bg != Some(Color::None));
+
+        let has_styles = is_fg
+            || is_bg
+            || self.style.bold
+            || self.style.underline
+            || self.style.italic
+            || self.style.strikethrough
+            || self.style.dim
+            || self.style.invert;
+
+        if !has_styles || get_cached_level() == ColorLevel::None {
+            return fmt::Display::fmt(self.value, f);
+        }
+
+        if let Some(color) = self.style.fg {
+            to_ansi_string(f, color, Layer::Foreground)?;
+        }
+
+        if let Some(color) = self.style.bg {
+            to_ansi_string(f, color, Layer::Background)?;
+        }
+
+        if self.style.bold {
+            f.write_str("\x1b[1m")?;
+        }
+
+        if self.style.dim {
+            f.write_str("\x1b[2m")?;
+        }
+        if self.style.italic {
+            f.write_str("\x1b[3m")?;
+        }
+        if self.style.underline {
+            f.write_str("\x1b[4m")?;
+        }
+        if self.style.invert {
+            f.write_str("\x1b[7m")?;
+        }
+
+        if self.style.strikethrough && get_terminal_app() != TerminalApp::AppleTerminal {
+            f.write_str("\x1b[9m")?;
+        }
+
+        if self.style.strikethrough && get_terminal_app() == TerminalApp::AppleTerminal {
+            // Apple Terminal requires a special fallback, handled below
+            write_apple_strikethrough_fallback(f, self.value)?;
+        } else {
+            fmt::Display::fmt(self.value, f)?;
+        }
+
+        // Append the final ANSI reset sequence
+        f.write_str("\x1b[0m")?;
+
+        Ok(())
+    }
+}
+
+/// A zero-allocation fallback that maps a Unicode combining strikethrough (`U+0336`)
+/// over visible glyphs to support Apple Terminal, which lacks native `\x1b[9m` support.
+fn write_apple_strikethrough_fallback<T: fmt::Display + ?Sized>(
+    f: &mut fmt::Formatter<'_>,
+    value: &T,
+) -> fmt::Result {
+    struct StrikethroughWriter<'a, 'b> {
+        formatter: &'a mut fmt::Formatter<'b>,
+        in_ansi: bool,
+    }
+
+    impl fmt::Write for StrikethroughWriter<'_, '_> {
+        fn write_str(&mut self, s: &str) -> fmt::Result {
+            for c in s.chars() {
+                self.formatter.write_char(c)?;
+
+                if c == '\x1b' {
+                    self.in_ansi = true;
+                } else if c == 'm' && self.in_ansi {
+                    self.in_ansi = false;
+                    continue;
+                }
+
+                if !c.is_control() && !self.in_ansi {
+                    self.formatter.write_char('\u{0336}')?;
+                }
+            }
+            Ok(())
+        }
+    }
+
+    use std::fmt::Write;
+    let mut writer = StrikethroughWriter {
+        formatter: f,
+        in_ansi: false,
+    };
+    write!(writer, "{}", value)
+}
 
 /// A builder profile container storing terminal styling codes.
 ///
@@ -99,111 +223,39 @@ impl Style {
         self
     }
 
-    /// Wraps the provided type with the built ANSI escape codes.
+    /// Applies the style configuration to a value that implements [`fmt::Display`].
     ///
-    /// Accepts any type implementing [`Display`](std::fmt::Display). If color support is absent,
-    /// it falls back gracefully to a standard unstyled string copy.
-    pub fn apply(&self, value: impl std::fmt::Display) -> String {
-        self.apply_inner(value, true)
-    }
-
-    /// Formats and wraps a displayable value with the active style configuration attributes.
+    /// Rather than executing string formatting immediately or allocating memory on the heap,
+    /// this method copies the `Style` settings and captures a reference to the given value
+    /// inside a lazy [`StyledRef`] wrapper.
     ///
-    /// * `value`: The target text payload to style.
-    /// * `detect_color`: If true, respects the environment's terminal capability profile (stripping styles on headless CI or file pipes); if false, bypasses all guards to force formatting generation (critical for unit testing isolation).
-    pub(crate) fn apply_inner(&self, value: impl std::fmt::Display, detect_color: bool) -> String {
-        let has_styles = self.fg.is_some()
-            || self.bg.is_some()
-            || self.bold
-            || self.underline
-            || self.italic
-            || self.strikethrough
-            || self.dim
-            || self.invert;
-
-        if !has_styles || detect_color && get_cached_level() == ColorLevel::None {
-            return value.to_string();
-        }
-
-        // Convert the input value into our working string allocation baseline
-        let mut working_string = value.to_string();
-
-        // FALLBACK: If strikethrough is requested on Apple Terminal, manually build
-        // the strikethrough layout using Unicode combining character streams.
-        if self.strikethrough && detect_color && get_terminal_app() == TerminalApp::AppleTerminal {
-            let mut fallback_string = String::with_capacity(working_string.len() * 2);
-
-            // help to prevent striking thorugh ANSI-code in the string
-            let mut in_ansi: bool = false;
-
-            for c in working_string.chars() {
-                fallback_string.push(c);
-
-                // Track if we are inside an ANSI escape sequence (\x1b...m)
-                // so we don't inject strikethrough characters into formatting codes and corrupt them.
-                if c == '\x1b' {
-                    in_ansi = true
-                } else if c == 'm' && in_ansi {
-                    in_ansi = false;
-                    continue;
-                }
-                // Skip control characters (like \x1b) so we don't inject strikethrough overlays into raw ANSI escape codes and corrupt them.
-                if !c.is_control() && !in_ansi {
-                    fallback_string.push('\u{0336}');
-                }
-            }
-            working_string = fallback_string;
-        }
-
-        let mut prefix = String::new();
-
-        // GitHub tests do not have terminal/environment detection available, so use the
-        // inner ANSI formatter directly instead of the environment-aware wrapper.
-        let ansi_fn = if detect_color {
-            to_ansi_string
-        } else {
-            to_ansi_string_inner
-        };
-
-        if let Some(color) = self.fg {
-            prefix.push_str(&ansi_fn(color, Layer::Foreground));
-        }
-
-        if let Some(color) = self.bg {
-            prefix.push_str(&ansi_fn(color, Layer::Background));
-        }
-
-        if self.bold {
-            prefix.push_str("\x1b[1m");
-        }
-
-        if self.dim {
-            prefix.push_str("\x1b[2m");
-        }
-        if self.italic {
-            prefix.push_str("\x1b[3m");
-        }
-        if self.underline {
-            prefix.push_str("\x1b[4m");
-        }
-        if self.invert {
-            prefix.push_str("\x1b[7m");
-        }
-
-        // Native standard ANSI sequence addition execution
-        if self.strikethrough {
-            // If we didn't use the Unicode fallback engine (either because we are on a different
-            // terminal or because environment capability tracking is explicitly disabled in tests),
-            // safely append the standard ANSI formatting escape sequence.
-            if !detect_color || get_terminal_app() != TerminalApp::AppleTerminal {
-                prefix.push_str("\x1b[9m");
-            }
-        }
-
-        if prefix.is_empty() {
-            working_string
-        } else {
-            format!("{}{}\x1b[0m", prefix, working_string)
+    /// The actual ANSI escape sequence evaluation and text rendering are deferred entirely
+    /// until the returned wrapper is processed by a formatting macro (like `println!` or `write!`),
+    /// ensuring a completely zero-allocation operation.
+    ///
+    /// # Lifetimes
+    ///
+    /// * `'a`: Bound exclusively to the lifetime of the input `value`. Because `Style` implements
+    ///   `Copy`, its lifecycle is decoupled from the return type, allowing the originating style
+    ///   instance to be immediately reused.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use prettyt::{Style, Color};
+    ///
+    /// let highlight = Style::new().fg(Color::Cyan).bold();
+    ///
+    /// // The same style instance can be reused simultaneously to format different values
+    /// let phrase_one = highlight.apply("Hello");
+    /// let phrase_two = highlight.apply(&42);
+    ///
+    /// println!("{} World! The answer is {}.", phrase_one, phrase_two);
+    /// ```
+    pub fn apply<'a, T: fmt::Display + ?Sized>(&self, value: &'a T) -> StyledRef<'a, T> {
+        StyledRef {
+            style: *self,
+            value,
         }
     }
 }
@@ -211,6 +263,7 @@ impl Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::style::color::to_ansi_string_for_test;
     use crate::terminal::TerminalApp;
     use crate::test_utils::MockTerminalGuard;
 
@@ -261,58 +314,128 @@ mod tests {
     fn apply_without_style_returns_plain_text() {
         let style = Style::new();
 
-        assert_eq!(style.apply_inner("hello", false), "hello");
+        assert_eq!(format!("{}", style.apply("hello")), "hello");
     }
 
     #[test]
     fn apply_with_foreground_wraps_text_with_ansi_reset() {
+        // 1. Force the test context to simulate a terminal capable of rendering colors
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+
         let style = Style::new().fg(Color::Red);
 
+        // 2. Use format!() to trigger the Display stream implementation
         assert_eq!(
-            style.apply_inner("hello", false),
+            format!("{}", style.apply("hello")),
             format!(
                 "{}hello\x1b[0m",
-                to_ansi_string_inner(Color::Red, Layer::Foreground)
+                to_ansi_string_for_test(Color::Red, Layer::Foreground)
             )
         );
     }
+
+    // ################# These tests check if our downsampling engine works properly ##################
+    #[test]
+    fn downsampling_truecolor_remains_unchanged() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+
+        // Vivid Coral/Orange RGB
+        let style = Style::new().fg(Color::Rgb(255, 128, 0));
+        let result = format!("{}", style.apply("test"));
+
+        // Should preserve direct 24-bit RGB ANSI escapes sequence (\x1b[38;2;R;G;Bm)
+        assert_eq!(result, "\x1b[38;2;255;128;0mtest\x1b[0m");
+    }
+
+    #[test]
+    fn downsampling_rgb_to_ansi256_palette() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::Ansi256);
+
+        // Pure RGB Red matches index 196 in the 256-color palette index spectrum
+        let style = Style::new().fg(Color::Rgb(255, 0, 0));
+        let result = format!("{}", style.apply("test"));
+
+        // Should convert to a fixed 256-color escape sequence (\x1b[38;5;Indexm)
+        assert_eq!(result, "\x1b[38;5;196mtest\x1b[0m");
+    }
+
+    #[test]
+    fn downsampling_rgb_to_basic_ansi16_bucket() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::Basic);
+
+        // Pure RGB Red downsamples to a standard 16-color Red variant
+        let style = Style::new().fg(Color::Rgb(255, 0, 0));
+        let result = format!("{}", style.apply("test"));
+
+        // Should convert to a standard basic foreground sequence (\x1b[31m)
+        assert_eq!(result, "\x1b[31mtest\x1b[0m");
+    }
+
+    #[test]
+    fn downsampling_ansi256_to_basic_ansi16_bucket() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::Basic);
+
+        // Index 196 represents a variant of Red which collapses back to standard Red (31)
+        let style = Style::new().fg(Color::Ansi256(196));
+        let result = format!("{}", style.apply("test"));
+
+        assert_eq!(result, "\x1b[31mtest\x1b[0m");
+    }
+
+    #[test]
+    fn downsampling_strips_all_formatting_when_level_is_none() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::None);
+
+        // Build a highly decorated style configuration
+        let style = Style::new()
+            .fg(Color::Rgb(100, 200, 255))
+            .bg(Color::Ansi256(45))
+            .bold()
+            .underline()
+            .italic();
+
+        let result = format!("{}", style.apply("hello"));
+
+        // Everything should fall back cleanly to a pure unstyled string copy
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn downsampling_keeps_basic_attributes_even_if_colors_are_none() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::Basic);
+
+        // Color::None means color output is skipped, but structural properties like bold stay
+        let style = Style::new().fg(Color::None).bold();
+        let result = format!("{}", style.apply("text"));
+
+        assert_eq!(result, "\x1b[1mtext\x1b[0m");
+    }
+
+    #[test]
+    fn downsampling_handles_background_conversions_uniformly() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::Basic);
+
+        // Verify background calculations match the foreground downsampling pipeline shifts
+        let style = Style::new().bg(Color::Rgb(0, 0, 255)); // Pure Blue
+        let result = format!("{}", style.apply("bg"));
+
+        // Should fall back gracefully to a basic background blue escape string (\x1b[44m)
+        assert_eq!(result, "\x1b[44mbg\x1b[0m");
+    }
+
+    // ####################################
 
     #[test]
     fn apply_with_background_wraps_text_with_ansi_reset() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+
         let style = Style::new().bg(Color::Blue);
 
         assert_eq!(
-            style.apply_inner("hello", false),
+            format!("{}", style.apply("hello")),
             format!(
                 "{}hello\x1b[0m",
-                to_ansi_string_inner(Color::Blue, Layer::Background)
-            )
-        );
-    }
-
-    #[test]
-    fn apply_with_foreground_and_background_orders_fg_before_bg() {
-        let style = Style::new().fg(Color::Red).bg(Color::Blue);
-
-        assert_eq!(
-            style.apply_inner("hello", false),
-            format!(
-                "{}{}hello\x1b[0m",
-                to_ansi_string_inner(Color::Red, Layer::Foreground),
-                to_ansi_string_inner(Color::Blue, Layer::Background),
-            )
-        );
-    }
-
-    #[test]
-    fn apply_accepts_any_display_value() {
-        let style = Style::new().fg(Color::Green);
-
-        assert_eq!(
-            style.apply_inner(42, false),
-            format!(
-                "{}42\x1b[0m",
-                to_ansi_string_inner(Color::Green, Layer::Foreground)
+                to_ansi_string_for_test(Color::Blue, Layer::Background)
             )
         );
     }
@@ -337,21 +460,22 @@ mod tests {
 
     #[test]
     fn apply_with_bold_wraps_text_with_bold_ansi_and_reset() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         let style = Style::new().bold();
 
-        assert_eq!(style.apply_inner("hello", false), "\x1b[1mhello\x1b[0m");
+        assert_eq!(format!("{}", style.apply("hello")), "\x1b[1mhello\x1b[0m");
     }
-
     #[test]
     fn apply_with_foreground_background_and_bold_orders_bold_after_colors() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         let style = Style::new().fg(Color::Red).bg(Color::Blue).bold();
 
         assert_eq!(
-            style.apply_inner("hello", false),
+            format!("{}", style.apply("hello")),
             format!(
                 "{}{}\x1b[1mhello\x1b[0m",
-                to_ansi_string_inner(Color::Red, Layer::Foreground),
-                to_ansi_string_inner(Color::Blue, Layer::Background),
+                to_ansi_string_for_test(Color::Red, Layer::Foreground),
+                to_ansi_string_for_test(Color::Blue, Layer::Background),
             )
         );
     }
@@ -393,6 +517,7 @@ mod tests {
 
     #[test]
     fn apply_with_text_styles_wraps_text_with_ansi_and_reset() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         let style = Style::new()
             .dim()
             .italic()
@@ -401,13 +526,14 @@ mod tests {
             .strikethrough();
 
         assert_eq!(
-            style.apply_inner("hello", false),
+            format!("{}", style.apply("hello")),
             "\x1b[2m\x1b[3m\x1b[4m\x1b[7m\x1b[9mhello\x1b[0m"
         );
     }
 
     #[test]
     fn all_styles_can_be_chained_with_fg_and_bg() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
         let style = Style::new()
             .fg(Color::Red)
             .bg(Color::Blue)
@@ -419,11 +545,11 @@ mod tests {
             .strikethrough();
 
         assert_eq!(
-            style.apply_inner("hello", false),
+            format!("{}", style.apply("hello")),
             format!(
                 "{}{}\x1b[1m\x1b[2m\x1b[3m\x1b[4m\x1b[7m\x1b[9mhello\x1b[0m",
-                to_ansi_string_inner(Color::Red, Layer::Foreground),
-                to_ansi_string_inner(Color::Blue, Layer::Background),
+                to_ansi_string_for_test(Color::Red, Layer::Foreground),
+                to_ansi_string_for_test(Color::Blue, Layer::Background),
             )
         );
     }
@@ -435,60 +561,52 @@ mod tests {
         assert_eq!(get_terminal_app(), TerminalApp::AppleTerminal);
         assert_eq!(get_cached_level(), ColorLevel::Ansi256);
 
-        // Force the system to think it's running on Apple Terminal
-        // Note: In a real test environment, you would ensure your OnceLock state
-        // matches or mock the underlying detection if you want to test it in pure isolation.
         let style = Style::new().strikethrough();
+        let result = format!("{}", style.apply("abc"));
 
-        // Evaluate text format mapping with detect_color set to true
-        let result = style.apply_inner("abc", true);
-
-        // it must contain the combining characters
-        // e + \u{0336} instead of the ANSI escape code \x1b[9m
         assert!(result.contains('\u{0336}'));
         assert!(!result.contains("\x1b[9m"));
     }
 
     #[test]
     fn apply_with_strikethrough_uses_ansi_escape_on_standard_terminals() {
-        // Force the system to act as an Unknown/Standard terminal
         let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::Ansi256);
 
         assert_eq!(get_terminal_app(), TerminalApp::Unknown);
         assert_eq!(get_cached_level(), ColorLevel::Ansi256);
 
         let style = Style::new().strikethrough();
-        let result = style.apply_inner("abc", true);
+        let result = format!("{}", style.apply("abc"));
 
-        // Verify that it uses standard ANSI strings on standard platforms
         assert!(result.contains("\x1b[9m"));
         assert!(!result.contains('\u{0336}'));
     }
 
     #[test]
     fn apply_with_strikethrough_preserves_nested_ansi_escape_sequences_in_apple_terminal() {
-        use crate::terminal::app::TerminalApp;
-
-        // Force Apple Terminal context and mock color capability to TrueColor
         let _guard = MockTerminalGuard::acquire(TerminalApp::AppleTerminal, ColorLevel::TrueColor);
 
         assert_eq!(get_terminal_app(), TerminalApp::AppleTerminal);
         assert_eq!(get_cached_level(), ColorLevel::TrueColor);
 
-        // Build an input string that already contains a standard ANSI color code sequence (\x1b[31m)
-        // This emulates styling text that has already been colored by another formatting pass.
-        let colored_text = "\x1b[31mtest\x1b[0m".to_string();
+        let colored_text = "\x1b[31mtest\x1b[0m";
         let style = Style::new().strikethrough();
 
-        // Evaluate mapping with detect_color set to false to force execution in headless environments
-        let result = style.apply_inner(colored_text, true);
+        let result = format!("{}", style.apply(colored_text));
 
-        // Verify that the raw formatting escape blocks remained completely clean and uncorrupted
         assert!(result.contains("\x1b[31m"));
         assert!(result.contains("\x1b[0m"));
-
-        // Verify that the printable characters inside the sequence were successfully struck through
-        // The text sequence should emerge transformed cleanly as: t + \u{0336} + e + \u{0336} ...
         assert!(result.contains("t\u{0336}e\u{0336}s\u{0336}t\u{0336}"));
+    }
+
+    #[test]
+    fn apply_with_color_none_does_not_append_ansi_reset() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+
+        // Create a style containing explicitly Color::None
+        let style = Style::new().fg(Color::None).bg(Color::None);
+
+        // The output should be EXACTLY the input string, with NO trailing reset code (\x1b[0m)
+        assert_eq!(format!("{}", style.apply("hello")), "hello");
     }
 }
