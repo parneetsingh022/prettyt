@@ -13,7 +13,7 @@ use self::color::{Layer, to_ansi_string};
 use crate::terminal::{ColorLevel, TerminalApp, get_cached_level, get_terminal_app};
 
 pub struct StyledRef<'a, T: fmt::Display + ?Sized> {
-    style: &'a Style,
+    style: Style,
     value: &'a T,
 }
 
@@ -202,7 +202,10 @@ impl Style {
     }
 
     pub fn apply<'a, T: fmt::Display + ?Sized>(&'a self, value: &'a T) -> StyledRef<'a, T> {
-        StyledRef { style: self, value }
+        StyledRef {
+            style: *self,
+            value,
+        }
     }
 }
 
