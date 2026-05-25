@@ -19,8 +19,14 @@ pub struct StyledRef<'a, T: fmt::Display + ?Sized> {
 
 impl<'a, T: fmt::Display + ?Sized> fmt::Display for StyledRef<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let has_styles = self.style.fg.is_some()
-            || self.style.bg.is_some()
+        // Both fg and bg should have a value and they also can't be Color::None.
+        // This check is necessary because if user tries Color::None with both fg and bg
+        // the code will append ending ansi character `\x1b[0m` otherwise.
+        let is_fg = self.style.fg.is_some() && (self.style.fg != Some(Color::None));
+        let is_bg = self.style.bg.is_some() && (self.style.bg != Some(Color::None));
+
+        let has_styles = is_fg
+            || is_bg
             || self.style.bold
             || self.style.underline
             || self.style.italic
@@ -546,5 +552,16 @@ mod tests {
         assert!(result.contains("\x1b[31m"));
         assert!(result.contains("\x1b[0m"));
         assert!(result.contains("t\u{0336}e\u{0336}s\u{0336}t\u{0336}"));
+    }
+
+    #[test]
+    fn apply_with_color_none_does_not_append_ansi_reset() {
+        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+
+        // Create a style containing explicitly Color::None
+        let style = Style::new().fg(Color::None).bg(Color::None);
+
+        // The output should be EXACTLY the input string, with NO trailing reset code (\x1b[0m)
+        assert_eq!(format!("{}", style.apply("hello")), "hello");
     }
 }
