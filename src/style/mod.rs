@@ -12,6 +12,20 @@ pub use self::color::Color;
 use self::color::{Layer, to_ansi_string};
 use crate::terminal::{ColorLevel, TerminalApp, get_cached_level, get_terminal_app};
 
+/// A lazy, zero-allocation wrapper that binds a [`Style`] configuration to a value.
+///
+/// This type is returned by [`Style::apply`]. It does not perform any text processing
+/// or string allocations upon creation. Instead, it implements [`fmt::Display`],
+/// deferring the evaluation of ANSI escape sequences until the wrapper is explicitly
+/// streamed into a formatting funnel (like `println!`, `format!`, or `write!`).
+///
+/// # Technical Notes
+///
+/// * **Zero-Allocation:** It purely holds a copied copy of the stack-allocated [`Style`]
+///   and a borrowed reference to the underlying data.
+/// * **Stream-Pass:** Calling `.to_string()` on this type *will* cause an allocation
+///   inherent to creating a new `String`. To preserve zero-allocation performance,
+///   pass this struct directly into formatting macros.
 pub struct StyledRef<'a, T: fmt::Display + ?Sized> {
     style: Style,
     value: &'a T,
@@ -81,6 +95,8 @@ impl<'a, T: fmt::Display + ?Sized> fmt::Display for StyledRef<'a, T> {
     }
 }
 
+/// A zero-allocation fallback that maps a Unicode combining strikethrough (`U+0336`)
+/// over visible glyphs to support Apple Terminal, which lacks native `\x1b[9m` support.
 fn write_apple_strikethrough_fallback<T: fmt::Display + ?Sized>(
     f: &mut fmt::Formatter<'_>,
     value: &T,
@@ -207,6 +223,35 @@ impl Style {
         self
     }
 
+    /// Applies the style configuration to a value that implements [`fmt::Display`].
+    ///
+    /// Rather than executing string formatting immediately or allocating memory on the heap,
+    /// this method copies the `Style` settings and captures a reference to the given value
+    /// inside a lazy [`StyledRef`] wrapper.
+    ///
+    /// The actual ANSI escape sequence evaluation and text rendering are deferred entirely
+    /// until the returned wrapper is processed by a formatting macro (like `println!` or `write!`),
+    /// ensuring a completely zero-allocation operation.
+    ///
+    /// # Lifetimes
+    ///
+    /// * `'a`: Bound exclusively to the lifetime of the input `value`. Because `Style` implements
+    ///   `Copy`, its lifecycle is decoupled from the return type, allowing the originating style
+    ///   instance to be immediately reused.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use prettyt::{Style, Color};
+    ///
+    /// let highlight = Style::new().fg(Color::Cyan).bold();
+    ///
+    /// // The same style instance can be reused simultaneously to format different values
+    /// let phrase_one = highlight.apply("Hello");
+    /// let phrase_two = highlight.apply(&42);
+    ///
+    /// println!("{} World! The answer is {}.", phrase_one, phrase_two);
+    /// ```
     pub fn apply<'a, T: fmt::Display + ?Sized>(&self, value: &'a T) -> StyledRef<'a, T> {
         StyledRef {
             style: *self,
