@@ -207,7 +207,7 @@ impl Style {
         self
     }
 
-    pub fn apply<'a, T: fmt::Display + ?Sized>(&'a self, value: &'a T) -> StyledRef<'a, T> {
+    pub fn apply<'a, T: fmt::Display + ?Sized>(&self, value: &'a T) -> StyledRef<'a, T> {
         StyledRef {
             style: *self,
             value,
