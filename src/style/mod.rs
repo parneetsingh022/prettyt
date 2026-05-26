@@ -45,21 +45,8 @@ impl<'a, T: fmt::Display + ?Sized> fmt::Display for StyledRef<'a, T> {
             to_ansi_string(f, color, Layer::Background)?;
         }
 
-        if self.style.bold {
-            f.write_str("\x1b[1m")?;
-        }
-
-        if self.style.dim {
-            f.write_str("\x1b[2m")?;
-        }
-        if self.style.italic {
-            f.write_str("\x1b[3m")?;
-        }
-        if self.style.underline {
-            f.write_str("\x1b[4m")?;
-        }
-        if self.style.invert {
-            f.write_str("\x1b[7m")?;
+        for attr_escape in self.style.active_attributes() {
+            f.write_str(attr_escape)?;
         }
 
         if self.style.strikethrough && get_terminal_app() != TerminalApp::AppleTerminal {
@@ -173,6 +160,19 @@ impl Style {
             || self.strikethrough
             || self.dim
             || self.invert)
+    }
+
+    /// Returns a list of active basic ANSI text attribute sequence strings.
+    pub(crate) fn active_attributes(&self) -> impl Iterator<Item = &'static str> {
+        [
+            (self.bold, "\x1b[1m"),
+            (self.dim, "\x1b[2m"),
+            (self.italic, "\x1b[3m"),
+            (self.underline, "\x1b[4m"),
+            (self.invert, "\x1b[7m"),
+        ]
+        .into_iter()
+        .filter_map(|(active, escape)| active.then_some(escape))
     }
 
     /// Sets the foreground text color.
