@@ -26,3 +26,7 @@ target
 /target
 
 .DS_Store
+
+
+# Ignore the entire local scratch directory and everything in it
+examples/local_*.rs
