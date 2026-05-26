@@ -33,22 +33,7 @@ pub struct StyledRef<'a, T: fmt::Display + ?Sized> {
 
 impl<'a, T: fmt::Display + ?Sized> fmt::Display for StyledRef<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Both fg and bg should have a value and they also can't be Color::None.
-        // This check is necessary because if user tries Color::None with both fg and bg
-        // the code will append ending ansi character `\x1b[0m` otherwise.
-        let is_fg = self.style.fg.is_some() && (self.style.fg != Some(Color::None));
-        let is_bg = self.style.bg.is_some() && (self.style.bg != Some(Color::None));
-
-        let has_styles = is_fg
-            || is_bg
-            || self.style.bold
-            || self.style.underline
-            || self.style.italic
-            || self.style.strikethrough
-            || self.style.dim
-            || self.style.invert;
-
-        if !has_styles || get_cached_level() == ColorLevel::None {
+        if self.style.is_plain() || get_cached_level() == ColorLevel::None {
             return fmt::Display::fmt(self.value, f);
         }
 
@@ -170,6 +155,24 @@ impl Style {
     /// Creates a blank style state with no modifiers active.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    // this function checks and returns true if no style is applied to the text.
+    pub(crate) fn is_plain(&self) -> bool {
+        // Both fg and bg should have a value and they also can't be Color::None.
+        // This check is necessary because if user tries Color::None with both fg and bg
+        // the code will append ending ansi character `\x1b[0m` otherwise.
+        let is_fg = self.fg.is_some() && (self.fg != Some(Color::None));
+        let is_bg = self.bg.is_some() && (self.bg != Some(Color::None));
+
+        !(is_fg
+            || is_bg
+            || self.bold
+            || self.underline
+            || self.italic
+            || self.strikethrough
+            || self.dim
+            || self.invert)
     }
 
     /// Sets the foreground text color.
