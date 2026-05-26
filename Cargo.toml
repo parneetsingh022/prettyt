@@ -25,5 +25,5 @@ pre-release-commit-message = "chore: release version {{version}}"
 
 sign-commit = false
 sign-tag = false
-push = true
-publish = true
+push = false
+publish = false
