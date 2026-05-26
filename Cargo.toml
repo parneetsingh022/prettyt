@@ -13,7 +13,6 @@ license = "Apache-2.0"
 
 [dependencies]
 
-
 [package.metadata.release]
 # Automatically update the CHANGELOG.md file version section header
 pre-release-replacements = [
@@ -27,6 +26,7 @@ tag-message = "Release {{version}}"
 # Set default git commit message format
 commit-message = "chore: release version {{version}}"
 
+# Control what gets pushed
 sign-commit = false
 sign-tag = false
 push = true
