@@ -4,7 +4,7 @@ name: Publish GitHub Release
 on:
   push:
     tags:
-      - 'v*' # Triggers whenever cargo release pushes a version tag like v0.1.1
+      - 'v*' # Triggers whenever cargo release pushes a version tag like v0.2.0
 
 jobs:
   github-release:
@@ -19,18 +19,35 @@ jobs:
 
       - name: Extract Changelog Section
         id: extract_changelog
-        uses: anymod/changelog-extractor-action@v1.1.0
-        with:
-          # Automatically extracts markdown text under the matching version header
-          version: ${{ github.ref_name }}
-          path: ./CHANGELOG.md
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          # Injects the exact text read from your CHANGELOG.md file
-          body: ${{ steps.extract_changelog.outputs.markdown }}
-          draft: false
-          prerelease: false
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}" # Strips 'v' to get '0.2.0'
+          
+          echo "Extracting release notes for version $VERSION..."
+          
+          # 1. Find the line number where our version section starts
+          START_LINE=$(grep -n "^## \[$VERSION\]" CHANGELOG.md | cut -d: -f1)
+          
+          if [ -z "$START_LINE" ]; then
+            echo "Could not find changelog section for version $VERSION"
+            exit 1
+          fi
+          
+          # 2. Get all contents starting from our version header
+          TAIL_CONTENTS=$(tail -n +$((START_LINE + 1)) CHANGELOG.md)
+          
+          # 3. Read downwards line-by-line until hitting the next major header (##)
+          NOTES=""
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^##\  ]]; then
+              break
+            fi
+            NOTES+="$line"$'\n'
+          done <<< "$TAIL_CONTENTS"
+          
+          # Safely export multiline strings into the GitHub Actions pipeline runner
+          {
+            echo "markdown<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
