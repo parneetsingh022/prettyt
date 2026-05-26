@@ -25,27 +25,28 @@ jobs:
           
           echo "Extracting release notes for version $VERSION..."
           
-          # 1. Find the line number where our version section starts
-          START_LINE=$(grep -n "^## \[$VERSION\]" CHANGELOG.md | cut -d: -f1)
+          # 1. Look for the line number containing our target version substring safely
+          START_LINE=$(grep -n "## \[$VERSION\]" CHANGELOG.md | head -n 1 | cut -d: -f1)
           
           if [ -z "$START_LINE" ]; then
-            echo "Could not find changelog section for version $VERSION"
+            echo "::error::Could not find CHANGELOG.md section matching: ## [$VERSION]"
             exit 1
           fi
           
-          # 2. Get all contents starting from our version header
+          # 2. Extract every line below that header line
           TAIL_CONTENTS=$(tail -n +$((START_LINE + 1)) CHANGELOG.md)
           
-          # 3. Read downwards line-by-line until hitting the next major header (##)
+          # 3. Stream downwards until hitting the next Markdown version block header (##)
           NOTES=""
           while IFS= read -r line; do
-            if [[ "$line" =~ ^##\  ]]; then
+            # Stop matching if we hit a different version header, but ignore empty lines/subheadings
+            if [[ "$line" =~ ^##\ \[ ]]; then
               break
             fi
             NOTES+="$line"$'\n'
           done <<< "$TAIL_CONTENTS"
           
-          # Safely export multiline strings into the GitHub Actions pipeline runner
+          # 4. Safely pipe the multiline string block out to GitHub Actions
           {
             echo "markdown<<EOF"
             echo "$NOTES"
