@@ -1,0 +1,36 @@
+# .github/workflows/release.yml
+name: Publish GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers whenever cargo release pushes a version tag like v0.1.1
+
+jobs:
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Crucial permission to allow creating releases
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Extract Changelog Section
+        id: extract_changelog
+        uses: anymod/changelog-extractor-action@v1.1.0
+        with:
+          # Automatically extracts markdown text under the matching version header
+          version: ${{ github.ref_name }}
+          path: ./CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          # Injects the exact text read from your CHANGELOG.md file
+          body: ${{ steps.extract_changelog.outputs.markdown }}
+          draft: false
+          prerelease: false
