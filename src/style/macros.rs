@@ -30,7 +30,7 @@ macro_rules! sprintln {
 #[cfg(test)]
 mod tests {
     use crate::style::{Color, Style};
-    use crate::terminal::{ColorLevel, TerminalApp};
+    use crate::terminal::ColorLevel;
     use crate::test_utils::MockTerminalGuard;
 
     #[test]
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn test_make_style_single_attributes() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
 
         assert!(format!("{}", make_style!(bold).apply("test")).contains("\x1b[1m"));
         assert!(format!("{}", make_style!(italic).apply("test")).contains("\x1b[3m"));
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn test_make_style_colors() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         let s = make_style!(fg(Color::Red), bg(Color::Blue));
 
         let formatted = format!("{}", s.apply("hello"));
@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn test_make_style_chained_and_trailing_comma() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         let s = make_style!(fg(Color::Green), bold, italic, underline,);
 
         let formatted = format!("{}", s.apply("hello"));
