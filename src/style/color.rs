@@ -256,7 +256,7 @@ pub(crate) fn to_ansi_string_for_test(color: Color, layer: Layer) -> String {
 mod tests {
     use super::*;
     use crate::style::Color;
-    use crate::terminal::{ColorLevel, TerminalApp};
+    use crate::terminal::ColorLevel;
     use crate::test_utils::MockTerminalGuard;
     // !!!! rgb_to_ansi256
     #[test]
@@ -412,7 +412,7 @@ mod tests {
 
     #[test]
     fn rgb_foreground() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         assert_eq!(
             to_ansi_string_for_test(Color::Rgb(255, 128, 0), Layer::Foreground),
             "\x1b[38;2;255;128;0m"
@@ -421,7 +421,7 @@ mod tests {
 
     #[test]
     fn rgb_background() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         assert_eq!(
             to_ansi_string_for_test(Color::Rgb(255, 128, 0), Layer::Background),
             "\x1b[48;2;255;128;0m"
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn ansi256_foreground() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         assert_eq!(
             to_ansi_string_for_test(Color::Ansi256(196), Layer::Foreground),
             "\x1b[38;5;196m"
@@ -438,7 +438,7 @@ mod tests {
     }
     #[test]
     fn ansi256_background() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         assert_eq!(
             to_ansi_string_for_test(Color::Ansi256(196), Layer::Background),
             "\x1b[48;5;196m"
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn ansi16_normal_foreground() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         assert_eq!(
             to_ansi_string_for_test(Color::Red, Layer::Foreground),
             "\x1b[31m"
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn ansi16_normal_background() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         assert_eq!(
             to_ansi_string_for_test(Color::Red, Layer::Background),
             "\x1b[41m"
@@ -465,7 +465,7 @@ mod tests {
 
     #[test]
     fn ansi16_bright_foreground() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         assert_eq!(
             to_ansi_string_for_test(Color::BrightRed, Layer::Foreground),
             "\x1b[91m"
@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn ansi16_bright_background() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         assert_eq!(
             to_ansi_string_for_test(Color::BrightRed, Layer::Background),
             "\x1b[101m"
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn ansi16_boundaries() {
-        let _guard = MockTerminalGuard::acquire(TerminalApp::Unknown, ColorLevel::TrueColor);
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
 
         assert_eq!(
             to_ansi_string_for_test(Color::Black, Layer::Foreground),
