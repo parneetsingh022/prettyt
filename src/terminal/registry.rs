@@ -70,9 +70,71 @@ pub(crate) fn get_cached_level() -> ColorLevel {
     }
     let level = u8_to_color_level(CACHED_LEVEL.load(Ordering::Relaxed));
 
-    if level == ColorLevel::Uninitialized {
+    if level != ColorLevel::Uninitialized {
         return level;
     }
 
     *COLOR_SUPPORT.get_or_init(detect_color_level)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A small helper utility to reset the atomic cache state to Uninitialized
+    // before running each isolated test block case.
+    fn reset_atomic_cache() {
+        CACHED_LEVEL.store(0, Ordering::Release);
+    }
+
+    #[test]
+    fn test_set_override_persists_globally() {
+        reset_atomic_cache();
+
+        // Enforce an explicit override
+        set_override(ColorLevel::Ansi256);
+
+        // Verify that get_cached_level honors the active atomic override bypass
+        assert_eq!(get_cached_level(), ColorLevel::Ansi256);
+
+        // Change the override state on the fly
+        set_override(ColorLevel::None);
+        assert_eq!(get_cached_level(), ColorLevel::None);
+
+        // Cleanup state
+        clear_override();
+    }
+
+    #[test]
+    fn test_clear_override_restores_fallback_detection() {
+        reset_atomic_cache();
+
+        // Set a temporary override rule
+        set_override(ColorLevel::TrueColor);
+        assert_eq!(get_cached_level(), ColorLevel::TrueColor);
+
+        // Clear the override—the cache state falls back to 0 (Uninitialized)
+        clear_override();
+
+        let current_atomic = u8_to_color_level(CACHED_LEVEL.load(Ordering::Relaxed));
+        assert_eq!(current_atomic, ColorLevel::Uninitialized);
+    }
+
+    #[test]
+    fn test_u8_and_color_level_bijective_mapping() {
+        // Ensure serialization math matches perfectly across the boundary spectrum
+        let levels = [
+            ColorLevel::Uninitialized,
+            ColorLevel::None,
+            ColorLevel::Basic,
+            ColorLevel::Ansi256,
+            ColorLevel::TrueColor,
+        ];
+
+        for level in levels {
+            let serialized = color_level_to_u8(level);
+            let deserialized = u8_to_color_level(serialized);
+            assert_eq!(level, deserialized);
+        }
+    }
 }
