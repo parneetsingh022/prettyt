@@ -57,10 +57,10 @@ pub fn clear_override() {
     CACHED_LEVEL.store(0, Ordering::Release);
 }
 
-/// Returns the detected terminal color support level, caching it after the first call.
-///
-/// Uses a thread-safe, lazy initialization to check environment variables and TTY status
-/// once per program execution.
+ /// Clear a previously set override, restoring automatic (cached) detection.
+ ///
+ /// Note: terminal capability detection is still cached for the life of the process
+ /// once it has been initialized.
 pub(crate) fn get_cached_level() -> ColorLevel {
     #[cfg(test)]
     {
