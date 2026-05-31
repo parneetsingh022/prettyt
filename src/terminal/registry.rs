@@ -1,5 +1,4 @@
 use crate::terminal::{ColorLevel, detect_color_level};
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 #[cfg(test)]
@@ -18,19 +17,17 @@ pub(crate) fn force_mock_color_level(level: Option<ColorLevel>) {
     *MOCK_COLOR_LEVEL.lock().unwrap() = level;
 }
 
-/// One-time initialization cell ensuring environment variable parsing and OS TTY
-/// detection are only calculated exactly once per program execution.
+/// The global atomic cache tracking the active terminal color capability level.
 ///
-/// If a mock level or an active user override is set, `get_cached_level` will bypass 
-/// this cell completely.
-static COLOR_SUPPORT: OnceLock<ColorLevel> = OnceLock::new();
-
-// Atomic state values:
-// 0 => Uninitialized (must detect)
-// 1 => None
-// 2 => Basic
-// 3 => Ansi256
-// 4 => TrueColor
+/// This single primitive manages both the lazy initialization pass and dynamic 
+/// runtime overrides (`set_override`).
+///
+/// # Atomic State Mapping Values:
+/// * `0` => Uninitialized (Forces an evaluation of environment cascades on the next call)
+/// * `1` => Evaluated and cached as `ColorLevel::None`
+/// * `2` => Evaluated and cached as `ColorLevel::Basic`
+/// * `3` => Evaluated and cached as `ColorLevel::Ansi256`
+/// * `4` => Evaluated and cached as `ColorLevel::TrueColor`
 static CACHED_LEVEL: AtomicU8 = AtomicU8::new(0);
 
 
@@ -71,9 +68,11 @@ pub(crate) fn get_cached_level() -> ColorLevel {
 
     if level != ColorLevel::Uninitialized {
         return level;
+    }else {
+        let detected = detect_color_level();
+        CACHED_LEVEL.store(color_level_to_u8(detected), Ordering::Release);
+        return detected;
     }
-
-    *COLOR_SUPPORT.get_or_init(detect_color_level)
 }
 
 
