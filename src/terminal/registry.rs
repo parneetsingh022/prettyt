@@ -73,6 +73,7 @@ pub(crate) fn get_cached_level() -> ColorLevel {
             return level;
         }
     }
+    
     let level = u8_to_color_level(CACHED_LEVEL.load(Ordering::Acquire));
 
     if level != ColorLevel::Uninitialized {

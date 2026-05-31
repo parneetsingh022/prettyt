@@ -58,7 +58,7 @@ fn main() {
     // =========================================================================
     println!("--- Restoring Automatic Terminal Detection ---");
 
-    // Clear the active lock to let automatic cascades evaluate the host TTY again
+    // Clear the override and fall back to automatic (cached) terminal detection
     clear_override();
 
     println!(
