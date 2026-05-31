@@ -5,6 +5,26 @@ use std::sync::atomic::{AtomicU8, Ordering};
 #[cfg(test)]
 use std::sync::Mutex;
 
+/// Internal test-only mutex to safely isolate mocked terminal levels across
+/// concurrent test threads, bypassing real environment cascades.
+///
+/// If a mock level is set here during testing, `get_cached_level` will intercept 
+/// it and return it immediately.
+#[cfg(test)]
+static MOCK_COLOR_LEVEL: Mutex<Option<ColorLevel>> = Mutex::new(None);
+
+#[cfg(test)]
+pub(crate) fn force_mock_color_level(level: Option<ColorLevel>) {
+    *MOCK_COLOR_LEVEL.lock().unwrap() = level;
+}
+
+/// One-time initialization cell ensuring environment variable parsing and OS TTY
+/// detection are only calculated exactly once per program execution.
+///
+/// If a mock level or an active user override is set, `get_cached_level` will bypass 
+/// this cell completely.
+static COLOR_SUPPORT: OnceLock<ColorLevel> = OnceLock::new();
+
 // Atomic state values:
 // 0 => Uninitialized (must detect)
 // 1 => None
@@ -12,6 +32,7 @@ use std::sync::Mutex;
 // 3 => Ansi256
 // 4 => TrueColor
 static CACHED_LEVEL: AtomicU8 = AtomicU8::new(0);
+
 
 fn u8_to_color_level(level: u8) -> ColorLevel {
     match level {
@@ -34,15 +55,27 @@ fn color_level_to_u8(level: ColorLevel) -> u8 {
     }
 }
 
-#[cfg(test)]
-static MOCK_COLOR_LEVEL: Mutex<Option<ColorLevel>> = Mutex::new(None);
+/// Clear a previously set override, restoring automatic (cached) detection.
+///
+/// Note: terminal capability detection is still cached for the life of the process
+/// once it has been initialized.
+pub(crate) fn get_cached_level() -> ColorLevel {
+    #[cfg(test)]
+    {
+        if let Some(level) = *MOCK_COLOR_LEVEL.lock().unwrap() {
+            return level;
+        }
+    }
 
-static COLOR_SUPPORT: OnceLock<ColorLevel> = OnceLock::new();
+    let level = u8_to_color_level(CACHED_LEVEL.load(Ordering::Acquire));
 
-#[cfg(test)]
-pub(crate) fn force_mock_color_level(level: Option<ColorLevel>) {
-    *MOCK_COLOR_LEVEL.lock().unwrap() = level;
+    if level != ColorLevel::Uninitialized {
+        return level;
+    }
+
+    *COLOR_SUPPORT.get_or_init(detect_color_level)
 }
+
 
 /// Forcefully override the global color level at runtime,
 /// bypassing any automatic environment cascades or cached values.
@@ -62,32 +95,11 @@ pub fn clear_override() {
     CACHED_LEVEL.store(0, Ordering::Release);
 }
 
-/// Clear a previously set override, restoring automatic (cached) detection.
-///
-/// Note: terminal capability detection is still cached for the life of the process
-/// once it has been initialized.
-pub(crate) fn get_cached_level() -> ColorLevel {
-    #[cfg(test)]
-    {
-        if let Some(level) = *MOCK_COLOR_LEVEL.lock().unwrap() {
-            return level;
-        }
-    }
-    
-    let level = u8_to_color_level(CACHED_LEVEL.load(Ordering::Acquire));
 
-    if level != ColorLevel::Uninitialized {
-        return level;
-    }
-
-    *COLOR_SUPPORT.get_or_init(detect_color_level)
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     // A small helper utility to reset the atomic cache state to Uninitialized
     // before running each isolated test block case.
@@ -97,9 +109,6 @@ mod tests {
 
     #[test]
     fn test_set_override_persists_globally() {
-        // Guard shared global test state. These tests mutate CACHED_LEVEL/MOCK_COLOR_LEVEL,
-        // and Rust runs tests in parallel by default, so the lock keeps assertions deterministic.
-        let _guard = TEST_LOCK.lock().unwrap();
         reset_atomic_cache();
 
         // Enforce an explicit override
@@ -118,7 +127,6 @@ mod tests {
 
     #[test]
     fn test_clear_override_restores_fallback_detection() {
-        let _guard = TEST_LOCK.lock().unwrap();
 
         reset_atomic_cache();
 
@@ -153,7 +161,6 @@ mod tests {
 
     #[test]
     fn test_set_override_rejects_uninitialized() {
-        let _guard = TEST_LOCK.lock().unwrap();
         reset_atomic_cache();
 
         let result = std::panic::catch_unwind(|| {
@@ -168,7 +175,6 @@ mod tests {
 
     #[test]
     fn test_set_override_uninitialized_does_not_clear_existing_override() {
-        let _guard = TEST_LOCK.lock().unwrap();
         reset_atomic_cache();
 
         set_override(ColorLevel::TrueColor);
