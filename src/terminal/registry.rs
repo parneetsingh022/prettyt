@@ -46,9 +46,17 @@ pub(crate) fn force_mock_color_level(level: Option<ColorLevel>) {
 
 /// Forcefully override the global color level at runtime,
 /// bypassing any automatic environment cascades or cached values.
-pub fn set_override(level: ColorLevel) {
+pub fn set_override(level: ColorLevel) -> Result<(), &'static str> {
+    if level == ColorLevel::Uninitialized {
+        return Err(
+            "ColorLevel::Uninitialized cannot be used as an override; use clear_override() instead",
+        );
+    }
+
     let state = color_level_to_u8(level);
     CACHED_LEVEL.store(state, Ordering::Release);
+
+    Ok(())
 }
 
 /// Clear a previously set override, resetting the engine to
@@ -57,10 +65,10 @@ pub fn clear_override() {
     CACHED_LEVEL.store(0, Ordering::Release);
 }
 
- /// Clear a previously set override, restoring automatic (cached) detection.
- ///
- /// Note: terminal capability detection is still cached for the life of the process
- /// once it has been initialized.
+/// Clear a previously set override, restoring automatic (cached) detection.
+///
+/// Note: terminal capability detection is still cached for the life of the process
+/// once it has been initialized.
 pub(crate) fn get_cached_level() -> ColorLevel {
     #[cfg(test)]
     {
@@ -68,7 +76,7 @@ pub(crate) fn get_cached_level() -> ColorLevel {
             return level;
         }
     }
-    let level = u8_to_color_level(CACHED_LEVEL.load(Ordering::Aquire));
+    let level = u8_to_color_level(CACHED_LEVEL.load(Ordering::Acquire));
 
     if level != ColorLevel::Uninitialized {
         return level;
@@ -92,13 +100,13 @@ mod tests {
         reset_atomic_cache();
 
         // Enforce an explicit override
-        set_override(ColorLevel::Ansi256);
+        set_override(ColorLevel::Ansi256).unwrap();
 
         // Verify that get_cached_level honors the active atomic override bypass
         assert_eq!(get_cached_level(), ColorLevel::Ansi256);
 
         // Change the override state on the fly
-        set_override(ColorLevel::None);
+        set_override(ColorLevel::None).unwrap();
         assert_eq!(get_cached_level(), ColorLevel::None);
 
         // Cleanup state
@@ -110,7 +118,7 @@ mod tests {
         reset_atomic_cache();
 
         // Set a temporary override rule
-        set_override(ColorLevel::TrueColor);
+        set_override(ColorLevel::TrueColor).unwrap();
         assert_eq!(get_cached_level(), ColorLevel::TrueColor);
 
         // Clear the override—the cache state falls back to 0 (Uninitialized)
@@ -137,4 +145,35 @@ mod tests {
             assert_eq!(level, deserialized);
         }
     }
+
+    #[test]
+    fn test_set_override_rejects_uninitialized() {
+        reset_atomic_cache();
+
+        let result = set_override(ColorLevel::Uninitialized).unwrap();
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "ColorLevel::Uninitialized cannot be used as an override; use clear_override() instead"
+        );
+
+        let current_atomic = u8_to_color_level(CACHED_LEVEL.load(Ordering::Relaxed));
+        assert_eq!(current_atomic, ColorLevel::Uninitialized);
+    }
+
+    #[test]
+fn test_set_override_uninitialized_does_not_clear_existing_override() {
+    reset_atomic_cache();
+
+    set_override(ColorLevel::TrueColor).unwrap();
+    assert_eq!(get_cached_level(), ColorLevel::TrueColor);
+
+    let result = set_override(ColorLevel::Uninitialized);
+
+    assert!(result.is_err());
+
+    // The previous override should still be active.
+    assert_eq!(get_cached_level(), ColorLevel::TrueColor);
+}
 }
