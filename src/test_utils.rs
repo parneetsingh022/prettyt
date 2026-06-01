@@ -11,9 +11,9 @@ pub struct MockTerminalGuard<'a> {
 }
 
 impl<'a> MockTerminalGuard<'a> {
-    pub fn acquire(level: ColorLevel) -> Self {
+    pub fn acquire(level: impl Into<Option<ColorLevel>>) -> Self {
         let lock = TEST_MUTEX.lock().unwrap();
-        force_mock_color_level(Some(level));
+        force_mock_color_level(level.into());
 
         Self { _lock: lock }
     }
