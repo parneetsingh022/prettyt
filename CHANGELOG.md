@@ -4,8 +4,10 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 
-### Removed
+### Added
 * **Global Control Overrides:** Introduced thread-safe `set_override(level: ColorLevel)` and `clear_override()` APIs, allowing developers to programmatically bypass environment cascades and explicitly lock down terminal styling preferences at runtime.
+
+### Removed
 * **Apple Terminal Strikethrough Fallback:** Removed the custom character-stitching fallback loop for macOS `Terminal.app` to resolve layout corruption, string data bloat, and ANSI tracking de-synchronization. The library now universally emits standard SGR 9 escape sequences across all environments.
 
 ## [0.2.0] - 2026-05-26
