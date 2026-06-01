@@ -24,6 +24,7 @@ use std::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorLevel {
+    Uninitialized,
     None,
     Basic,     // 16 colors
     Ansi256,   // 256 colors

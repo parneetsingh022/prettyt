@@ -53,6 +53,7 @@ pub mod style;
 pub mod terminal;
 
 pub use style::{Color, Style};
+pub use terminal::{ColorLevel, registry::clear_override, registry::set_override};
 
 #[cfg(test)]
 mod test_utils;
