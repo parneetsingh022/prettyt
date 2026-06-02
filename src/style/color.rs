@@ -180,7 +180,7 @@ pub(crate) fn ansi256_to_ansi16(n: u8) -> Color {
 
 fn get_appropriate_color_for_level(color: Color, level: ColorLevel) -> Color {
     match level {
-        ColorLevel::Uninitialized | ColorLevel::None => Color::None,
+        ColorLevel::__Uninitialized | ColorLevel::None => Color::None,
 
         ColorLevel::TrueColor => color,
 

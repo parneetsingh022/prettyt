@@ -23,12 +23,37 @@ use std::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Describes the level of terminal color support.
 pub enum ColorLevel {
-    Uninitialized,
+    /// No color support.
+    ///
+    /// Output should not contain ANSI color escape sequences.
     None,
-    Basic,     // 16 colors
-    Ansi256,   // 256 colors
-    TrueColor, // 24-bit
+
+    /// Basic ANSI color support.
+    ///
+    /// Supports the standard 16 terminal colors.
+    Basic,
+
+    /// Extended ANSI color support.
+    ///
+    /// Supports 256-color ANSI escape sequences.
+    Ansi256,
+
+    /// True color support.
+    ///
+    /// Supports 24-bit RGB color, usually written as `16_777_216` possible colors.
+    TrueColor,
+
+
+    /// Internal sentinel value used before color support has been detected.
+    ///
+    /// > **Warning**
+    /// >
+    /// > This variant is for internal use only.
+    /// > Downstream code should not construct it or rely on matching it.
+    #[doc(alias = "Uninitialized")]
+    __Uninitialized,
 }
 
 fn is_tty() -> bool {

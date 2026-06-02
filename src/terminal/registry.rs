@@ -23,7 +23,7 @@ pub(crate) fn force_mock_color_level(level: Option<ColorLevel>) {
 /// runtime overrides (`set_override`).
 ///
 /// # Atomic State Mapping Values:
-/// * `0` => Uninitialized (Forces an evaluation of environment cascades on the next call)
+/// * `0` => __Uninitialized (Forces an evaluation of environment cascades on the next call)
 /// * `1` => Evaluated and cached as `ColorLevel::None`
 /// * `2` => Evaluated and cached as `ColorLevel::Basic`
 /// * `3` => Evaluated and cached as `ColorLevel::Ansi256`
@@ -32,7 +32,7 @@ static CACHED_LEVEL: AtomicU8 = AtomicU8::new(0);
 
 fn u8_to_color_level(level: u8) -> ColorLevel {
     match level {
-        0 => ColorLevel::Uninitialized,
+        0 => ColorLevel::__Uninitialized,
         1 => ColorLevel::None,
         2 => ColorLevel::Basic,
         3 => ColorLevel::Ansi256,
@@ -43,7 +43,7 @@ fn u8_to_color_level(level: u8) -> ColorLevel {
 
 fn color_level_to_u8(level: ColorLevel) -> u8 {
     match level {
-        ColorLevel::Uninitialized => 0,
+        ColorLevel::__Uninitialized => 0,
         ColorLevel::None => 1,
         ColorLevel::Basic => 2,
         ColorLevel::Ansi256 => 3,
@@ -83,7 +83,7 @@ pub(crate) fn get_cached_level() -> ColorLevel {
 /// bypassing any automatic environment cascades or cached values.
 pub fn set_override(level: ColorLevel) {
     assert!(
-        level != ColorLevel::Uninitialized,
+        level != ColorLevel::__Uninitialized,
         "ColorLevel::Uninitialized cannot be used as a color override; use clear_override() instead"
     );
 
@@ -145,14 +145,14 @@ mod tests {
         clear_override();
 
         let current_atomic = u8_to_color_level(CACHED_LEVEL.load(Ordering::Relaxed));
-        assert_eq!(current_atomic, ColorLevel::Uninitialized);
+        assert_eq!(current_atomic, ColorLevel::__Uninitialized);
     }
 
     #[test]
     fn test_u8_and_color_level_bijective_mapping() {
         // Ensure serialization math matches perfectly across the boundary spectrum
         let levels = [
-            ColorLevel::Uninitialized,
+            ColorLevel::__Uninitialized,
             ColorLevel::None,
             ColorLevel::Basic,
             ColorLevel::Ansi256,
@@ -174,13 +174,13 @@ mod tests {
         reset_atomic_cache();
 
         let result = std::panic::catch_unwind(|| {
-            set_override(ColorLevel::Uninitialized);
+            set_override(ColorLevel::__Uninitialized);
         });
 
         assert!(result.is_err());
 
         let current_atomic = u8_to_color_level(CACHED_LEVEL.load(Ordering::Acquire));
-        assert_eq!(current_atomic, ColorLevel::Uninitialized);
+        assert_eq!(current_atomic, ColorLevel::__Uninitialized);
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod tests {
         assert_eq!(get_cached_level(), ColorLevel::TrueColor);
 
         let result = std::panic::catch_unwind(|| {
-            set_override(ColorLevel::Uninitialized);
+            set_override(ColorLevel::__Uninitialized);
         });
 
         assert!(result.is_err());
