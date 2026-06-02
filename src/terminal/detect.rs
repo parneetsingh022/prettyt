@@ -45,7 +45,6 @@ pub enum ColorLevel {
     /// Supports 24-bit RGB color, usually written as `16_777_216` possible colors.
     TrueColor,
 
-
     /// Internal sentinel value used before color support has been detected.
     ///
     /// > **Warning**
