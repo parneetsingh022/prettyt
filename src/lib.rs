@@ -48,9 +48,14 @@
 //! println!("Returned error code: {}", highlight.apply(&500));
 //! # }
 //! ```
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod style;
 pub mod terminal;
+
+#[cfg(feature = "panel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "panel")))]
+pub mod panel;
 
 pub use style::css_colors::CSSColor;
 pub use style::{Color, Style};

@@ -30,3 +30,5 @@ target
 
 # Ignore the entire local scratch directory and everything in it
 examples/local_*.rs
+
+.vscode/

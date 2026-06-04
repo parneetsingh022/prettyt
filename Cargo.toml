@@ -11,7 +11,20 @@ keywords = ["ansi", "terminal", "color", "styling", "cli"]
 categories = ["command-line-interface", "rendering"]
 license = "Apache-2.0"
 
+[features]
+default = []
+
+terminal_size = ["dep:terminal_size"]
+
+panel = ["terminal_size"]
+
 [dependencies]
+terminal_size = { version = "0.4.4", optional = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 
 [package.metadata.release]
 pre-release-replacements = [
