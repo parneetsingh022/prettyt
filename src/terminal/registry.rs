@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 /// runtime overrides (`set_override`).
 ///
 /// # Atomic State Mapping Values:
-/// * `0` => __Uninitialized (Forces an evaluation of environment cascades on the next call)
+/// * `0` => `__Uninitialized` (Forces an evaluation of environment cascades on the next call)
 /// * `1` => Evaluated and cached as `ColorLevel::None`
 /// * `2` => Evaluated and cached as `ColorLevel::Basic`
 /// * `3` => Evaluated and cached as `ColorLevel::Ansi256`
@@ -47,7 +47,7 @@ fn color_level_to_u8(level: ColorLevel) -> u8 {
 pub(crate) fn get_cached_level() -> ColorLevel {
     let raw = CACHED_LEVEL.load(Ordering::Acquire);
 
-    // if not Uninitialized
+    // if not __Uninitialized
     if raw != 0 {
         return u8_to_color_level(raw);
     }
