@@ -54,7 +54,6 @@ pub mod detect;
 pub mod registry;
 
 #[cfg(feature = "terminal_size")]
-#[cfg_attr(docsrs, doc(cfg(feature = "terminal_size")))]
 pub(crate) mod dimensions;
 
 pub use detect::{ColorLevel, detect_color_level};
