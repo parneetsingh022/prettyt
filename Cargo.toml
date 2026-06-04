@@ -25,6 +25,10 @@ terminal_size = { version = "0.4.4", optional = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[[example]]
+name = "panel_demo"
+required-features = ["panel"]
+
 
 [package.metadata.release]
 pre-release-replacements = [
