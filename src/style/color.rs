@@ -55,6 +55,42 @@ impl Color {
         Color::BrightWhite,
     ];
 
+    /// Creates an RGB color from a hexadecimal color string.
+    ///
+    /// Accepts either `"#RRGGBB"` or `"RRGGBB"`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input is not a valid 6-digit hexadecimal RGB color.
+    pub const fn from_hex(hex: &str) -> Color {
+        const fn hex_digit(byte: u8) -> u8 {
+            match byte {
+                b'0'..=b'9' => byte - b'0',
+                b'a'..=b'f' => byte - b'a' + 10,
+                b'A'..=b'F' => byte - b'A' + 10,
+                _ => panic!("invalid hex digit"),
+            }
+        }
+
+        let bytes = hex.as_bytes();
+
+        let start = if !bytes.is_empty() && bytes[0] == b'#' {
+            1
+        } else {
+            0
+        };
+
+        if bytes.len() - start != 6 {
+            panic!("hex color must be in the format #RRGGBB or RRGGBB");
+        }
+
+        let r = (hex_digit(bytes[start]) << 4) | hex_digit(bytes[start + 1]);
+        let g = (hex_digit(bytes[start + 2]) << 4) | hex_digit(bytes[start + 3]);
+        let b = (hex_digit(bytes[start + 4]) << 4) | hex_digit(bytes[start + 5]);
+
+        Color::Rgb(r, g, b)
+    }
+
     /// Reconstructs a top-level 16-color ANSI variant from a raw u8 index (0..=15).
     ///
     /// # Panics
@@ -616,5 +652,87 @@ mod tests {
             get_appropriate_color_for_level(Color::None, ColorLevel::Basic),
             Color::None
         );
+    }
+
+    #[test]
+    fn test_color_from_hex_basic() {
+        assert_eq!(Color::from_hex("#000000"), Color::Rgb(0, 0, 0));
+        assert_eq!(Color::from_hex("#ffffff"), Color::Rgb(255, 255, 255));
+    }
+
+    #[test]
+    fn test_color_from_hex_without_hash() {
+        assert_eq!(Color::from_hex("000000"), Color::Rgb(0, 0, 0));
+        assert_eq!(Color::from_hex("ffffff"), Color::Rgb(255, 255, 255));
+    }
+
+    #[test]
+    fn test_color_from_hex_uppercase() {
+        assert_eq!(Color::from_hex("#FFFFFF"), Color::Rgb(255, 255, 255));
+        assert_eq!(Color::from_hex("#ABCDEF"), Color::Rgb(171, 205, 239));
+    }
+
+    #[test]
+    fn test_color_from_hex_mixed_case() {
+        assert_eq!(Color::from_hex("#aBcDeF"), Color::Rgb(171, 205, 239));
+    }
+
+    #[test]
+    fn test_color_from_hex_common_colors() {
+        assert_eq!(Color::from_hex("#ff0000"), Color::Rgb(255, 0, 0));
+        assert_eq!(Color::from_hex("#00ff00"), Color::Rgb(0, 255, 0));
+        assert_eq!(Color::from_hex("#0000ff"), Color::Rgb(0, 0, 255));
+        assert_eq!(Color::from_hex("#ff8800"), Color::Rgb(255, 136, 0));
+    }
+
+    #[test]
+    fn test_color_from_hex_const_context() {
+        const ORANGE: Color = Color::from_hex("#ff8800");
+        const CYAN: Color = Color::from_hex("00FFFF");
+
+        assert_eq!(ORANGE, Color::Rgb(255, 136, 0));
+        assert_eq!(CYAN, Color::Rgb(0, 255, 255));
+    }
+
+    #[test]
+    #[should_panic(expected = "hex color must be in the format #RRGGBB or RRGGBB")]
+    fn test_color_from_hex_rejects_empty_string() {
+        Color::from_hex("");
+    }
+
+    #[test]
+    #[should_panic(expected = "hex color must be in the format #RRGGBB or RRGGBB")]
+    fn test_color_from_hex_rejects_only_hash() {
+        Color::from_hex("#");
+    }
+
+    #[test]
+    #[should_panic(expected = "hex color must be in the format #RRGGBB or RRGGBB")]
+    fn test_color_from_hex_rejects_short_hex() {
+        Color::from_hex("#fff");
+    }
+
+    #[test]
+    #[should_panic(expected = "hex color must be in the format #RRGGBB or RRGGBB")]
+    fn test_color_from_hex_rejects_long_hex() {
+        Color::from_hex("#ffffffff");
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid hex digit")]
+    fn test_color_from_hex_rejects_invalid_digit() {
+        Color::from_hex("#gg0000");
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid hex digit")]
+    fn test_color_from_hex_rejects_symbol() {
+        Color::from_hex("#ff00!0");
+    }
+
+    #[test]
+    #[should_panic(expected = "hex color must be in the format #RRGGBB or RRGGBB")]
+    fn test_color_from_hex_rejects_double_hash() {
+        Color::from_hex("##000000");
     }
 }
