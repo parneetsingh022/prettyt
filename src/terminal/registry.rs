@@ -66,7 +66,7 @@ pub(crate) fn get_cached_level() -> ColorLevel {
 pub fn set_override(level: ColorLevel) {
     assert!(
         level != ColorLevel::__Uninitialized,
-        "ColorLevel::Uninitialized cannot be used as a color override; use clear_override() instead"
+        "ColorLevel::__Uninitialized cannot be used as a color override; use clear_override() instead"
     );
 
     let state = color_level_to_u8(level);
