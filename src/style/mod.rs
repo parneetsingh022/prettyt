@@ -4,6 +4,7 @@
 //! for stacking properties like foreground colors, backgrounds, and font weights.
 
 pub mod color;
+pub mod css_colors;
 pub mod macros;
 
 use core::fmt;

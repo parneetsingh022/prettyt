@@ -7,7 +7,10 @@ All notable changes to this project will be documented in this file. This projec
 ### Added
 * **Global Control Overrides:** Introduced thread-safe `set_override(level: ColorLevel)` and `clear_override()` APIs, allowing developers to programmatically bypass environment cascades and explicitly lock down terminal styling preferences at runtime.
 
-* **Hex Color Construction:** Added `Color::from_hex(...)` for creating RGB colors from `"#RRGGBB"` or `"RRGGBB"` hex strings, including support for compile-time `const` color definitions.
+* **Hex Color Construction:** Added `Color::from_hex(...)` for creating RGB colors from `"#RRGGBB"` or `"RRGGBB"` hex strings, including support for compile-time `const` color definitions
+
+* **CSS Colors:** Added `CSSColor` struct, providing the complete set of CSS named colors as `Color` constants. All standard 140 CSS color names and aliases are now available for convenient compile-time color selection.
+
 
 ### Removed
 * **Apple Terminal Strikethrough Fallback:** Removed the custom character-stitching fallback loop for macOS `Terminal.app` to resolve layout corruption, string data bloat, and ANSI tracking de-synchronization. The library now universally emits standard SGR 9 escape sequences across all environments.
