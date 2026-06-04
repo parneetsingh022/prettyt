@@ -52,6 +52,7 @@ pub enum ColorLevel {
     /// > This variant is for internal use only.
     /// > Downstream code should not construct it or rely on matching it.
     #[doc(alias = "Uninitialized")]
+    #[doc(hidden)]
     __Uninitialized,
 }
 
