@@ -266,6 +266,9 @@ mod tests {
 
     #[test]
     fn apply_without_style_returns_plain_text() {
+        // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
+        // Passing `None` clears any override and returns it to `__Uninitialized` state.
+        let _guard = MockTerminalGuard::acquire(None);
         let style = Style::new();
 
         assert_eq!(format!("{}", style.apply("hello")), "hello");
@@ -273,7 +276,7 @@ mod tests {
 
     #[test]
     fn apply_with_foreground_wraps_text_with_ansi_reset() {
-        // 1. Force the test context to simulate a terminal capable of rendering colors
+        // Force the test context to simulate a terminal capable of rendering colors
         let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
 
         let style = Style::new().fg(Color::Red);

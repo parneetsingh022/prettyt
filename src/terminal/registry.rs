@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn test_set_override_persists_globally() {
         // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
-        // Passing `None` clears the mock override out of the way so our real production cell gets tested.
+        // Passing `None` clears any override and returns it to `__Uninitialized` state.
         let _guard = MockTerminalGuard::acquire(None);
 
         // Enforce an explicit override
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn test_clear_override_restores_fallback_detection() {
         // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
-        // Passing `None` clears the mock override out of the way so our real production cell gets tested.
+        // Passing `None` clears any override and returns it to `__Uninitialized` state.
         let _guard = MockTerminalGuard::acquire(None);
 
         // Set a temporary override rule
@@ -145,7 +145,7 @@ mod tests {
     #[test]
     fn test_set_override_rejects_uninitialized() {
         // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
-        // Passing `None` clears the mock override out of the way so our real production cell gets tested.
+        // Passing `None` clears any override and returns it to `__Uninitialized` state.
         let _guard = MockTerminalGuard::acquire(None);
 
         let result = std::panic::catch_unwind(|| {
@@ -161,7 +161,7 @@ mod tests {
     #[test]
     fn test_set_override_uninitialized_does_not_clear_existing_override() {
         // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
-        // Passing `None` clears the mock override out of the way so our real production cell gets tested.
+        // Passing `None` clears any override and returns it to `__Uninitialized` state.
         let _guard = MockTerminalGuard::acquire(None);
 
         set_override(ColorLevel::TrueColor);

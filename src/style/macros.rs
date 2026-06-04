@@ -71,6 +71,7 @@ mod tests {
 
     #[test]
     fn test_sprintln_expansion() {
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         // Since sprintln! calls println!, we can verify it compiles
         // cleanly and formats correctly using a valid style object.
         let sample_style = Style::new().fg(Color::Cyan).bold();
@@ -91,6 +92,7 @@ mod tests {
 
     #[test]
     fn test_sprintln_with_named_args() {
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
         let sample_style = crate::style::Style::new().bold();
 
         // This will now compile flawlessly!
