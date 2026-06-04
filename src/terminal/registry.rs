@@ -1,22 +1,6 @@
 use crate::terminal::{ColorLevel, detect_color_level};
 use std::sync::atomic::{AtomicU8, Ordering};
 
-#[cfg(test)]
-use std::sync::Mutex;
-
-/// Internal test-only mutex to safely isolate mocked terminal levels across
-/// concurrent test threads, bypassing real environment cascades.
-///
-/// If a mock level is set here during testing, `get_cached_level` will intercept
-/// it and return it immediately.
-#[cfg(test)]
-static MOCK_COLOR_LEVEL: Mutex<Option<ColorLevel>> = Mutex::new(None);
-
-#[cfg(test)]
-pub(crate) fn force_mock_color_level(level: Option<ColorLevel>) {
-    *MOCK_COLOR_LEVEL.lock().unwrap() = level;
-}
-
 /// The global atomic cache tracking the active terminal color capability level.
 ///
 /// This single primitive manages both the lazy initialization pass and dynamic
@@ -29,6 +13,11 @@ pub(crate) fn force_mock_color_level(level: Option<ColorLevel>) {
 /// * `3` => Evaluated and cached as `ColorLevel::Ansi256`
 /// * `4` => Evaluated and cached as `ColorLevel::TrueColor`
 static CACHED_LEVEL: AtomicU8 = AtomicU8::new(0);
+
+#[cfg(test)]
+pub(crate) fn reset_cached_level() {
+    CACHED_LEVEL.store(0, Ordering::Release);
+}
 
 fn u8_to_color_level(level: u8) -> ColorLevel {
     match level {
@@ -56,13 +45,6 @@ fn color_level_to_u8(level: ColorLevel) -> u8 {
 /// Note: terminal capability detection is still cached for the life of the process
 /// once it has been initialized.
 pub(crate) fn get_cached_level() -> ColorLevel {
-    #[cfg(test)]
-    {
-        if let Some(level) = *MOCK_COLOR_LEVEL.lock().unwrap() {
-            return level;
-        }
-    }
-
     let raw = CACHED_LEVEL.load(Ordering::Acquire);
 
     // if not Uninitialized
@@ -91,8 +73,11 @@ pub fn set_override(level: ColorLevel) {
     CACHED_LEVEL.store(state, Ordering::Release);
 }
 
-/// Clear a previously set override, resetting the engine to
-/// evaluate environment variables on the next style processing block.
+/// Clears any active override and invalidates the cached color level.
+///
+/// This resets `CACHED_LEVEL` to `0` (`ColorLevel::__Uninitialized`).
+/// The next call to `get_cached_level()` will run terminal color detection again
+/// and store the newly detected level in the cache.
 pub fn clear_override() {
     CACHED_LEVEL.store(0, Ordering::Release);
 }
@@ -102,18 +87,11 @@ mod tests {
     use super::*;
     use crate::test_utils::MockTerminalGuard;
 
-    // A small helper utility to reset the atomic cache state to Uninitialized
-    // before running each isolated test block case.
-    fn reset_atomic_cache() {
-        CACHED_LEVEL.store(0, Ordering::Release);
-    }
-
     #[test]
     fn test_set_override_persists_globally() {
         // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
         // Passing `None` clears the mock override out of the way so our real production cell gets tested.
         let _guard = MockTerminalGuard::acquire(None);
-        reset_atomic_cache();
 
         // Enforce an explicit override
         set_override(ColorLevel::Ansi256);
@@ -134,8 +112,6 @@ mod tests {
         // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
         // Passing `None` clears the mock override out of the way so our real production cell gets tested.
         let _guard = MockTerminalGuard::acquire(None);
-
-        reset_atomic_cache();
 
         // Set a temporary override rule
         set_override(ColorLevel::TrueColor);
@@ -171,7 +147,6 @@ mod tests {
         // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
         // Passing `None` clears the mock override out of the way so our real production cell gets tested.
         let _guard = MockTerminalGuard::acquire(None);
-        reset_atomic_cache();
 
         let result = std::panic::catch_unwind(|| {
             set_override(ColorLevel::__Uninitialized);
@@ -188,7 +163,6 @@ mod tests {
         // Acquires the global `TEST_MUTEX` to prevent concurrent test threads from racing on `CACHED_LEVEL`.
         // Passing `None` clears the mock override out of the way so our real production cell gets tested.
         let _guard = MockTerminalGuard::acquire(None);
-        reset_atomic_cache();
 
         set_override(ColorLevel::TrueColor);
         assert_eq!(get_cached_level(), ColorLevel::TrueColor);
