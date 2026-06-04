@@ -50,15 +50,12 @@
 //! Modern terminals often expose `COLORTERM=truecolor` or `24bit` to advertise
 //! full 24-bit RGB support. Legacy terminals commonly expose `256color` through
 //! the `TERM` variable to indicate extended ANSI palette support.
-
-#![cfg_attr(docsrs, feature(doc_cfg))]
-
 pub mod detect;
 pub mod registry;
 
 #[cfg(feature = "terminal_size")]
-#[cfg_attr(docsrs, doc(cfg(feature = "panel")))]
-pub mod dimensions;
+#[cfg_attr(docsrs, doc(cfg(feature = "terminal_size")))]
+pub(crate) mod dimensions;
 
 pub use detect::{ColorLevel, detect_color_level};
 pub(crate) use registry::get_cached_level;
