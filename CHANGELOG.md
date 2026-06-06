@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file. This projec
 
 * **CSS Colors:** Added `CSSColor` struct, providing the complete set of CSS named colors as `Color` constants. All standard 140 CSS color names and aliases are now available for convenient compile-time color selection.
 
+* **Panel Layouts:** Added a generic `Panel` layout container supporting nested frames, custom titles, and automatic padding calculated via `unicode-width`.
 
 ### Removed
 * **Apple Terminal Strikethrough Fallback:** Removed the custom character-stitching fallback loop for macOS `Terminal.app` to resolve layout corruption, string data bloat, and ANSI tracking de-synchronization. The library now universally emits standard SGR 9 escape sequences across all environments.
