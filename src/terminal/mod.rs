@@ -53,11 +53,13 @@
 pub mod detect;
 pub mod registry;
 
-#[cfg(feature = "unicode-width")]
 pub(crate) mod width;
 
 #[cfg(feature = "unicode-width")]
 pub(crate) use width::visual_line_width;
+
+#[cfg(feature = "terminal_size")]
+pub(crate) use width::terminal_width;
 
 pub use detect::{ColorLevel, detect_color_level};
 pub(crate) use registry::get_cached_level;

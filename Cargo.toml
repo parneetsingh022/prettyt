@@ -12,12 +12,14 @@ categories = ["command-line-interface", "rendering"]
 license = "Apache-2.0"
 
 [dependencies]
+terminal_size = { version = "0.4.4", optional = true }
 unicode-width = { version = "0.2.2", optional = true }
 
 [features]
 default = []
-layout = ["unicode-width"]
+layout = ["unicode-width", "terminal_size"]
 unicode-width = ["dep:unicode-width"]
+terminal_size = ["dep:terminal_size"]
 
 [package.metadata.release]
 pre-release-replacements = [

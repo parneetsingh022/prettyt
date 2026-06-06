@@ -1,5 +1,5 @@
 use crate::layout::{LayoutDisplay, Renderable, SizeHint};
-use crate::terminal::visual_line_width;
+use crate::terminal::{terminal_width, visual_line_width};
 use core::fmt;
 
 pub struct Panel<'a, T: Renderable> {
@@ -28,7 +28,7 @@ impl<'a, T: Renderable> fmt::Display for Panel<'a, T> {
         // temporary display configuration proxy
         let display = LayoutDisplay {
             layout: self,
-            width: 80,
+            width: terminal_width(),
         };
 
         fmt::Display::fmt(&display, f)
