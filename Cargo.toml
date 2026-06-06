@@ -12,6 +12,12 @@ categories = ["command-line-interface", "rendering"]
 license = "Apache-2.0"
 
 [dependencies]
+unicode-width = { version = "0.2.2", optional = true }
+
+[features]
+default = []
+layout = ["unicode-width"]
+unicode-width = ["dep:unicode-width"]
 
 [package.metadata.release]
 pre-release-replacements = [

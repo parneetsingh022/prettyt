@@ -52,6 +52,9 @@
 pub mod style;
 pub mod terminal;
 
+#[cfg(feature = "layout")]
+pub mod layout;
+
 pub use style::css_colors::CSSColor;
 pub use style::{Color, Style};
 pub use terminal::{ColorLevel, registry::clear_override, registry::set_override};
