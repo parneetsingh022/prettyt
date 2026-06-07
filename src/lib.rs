@@ -48,6 +48,7 @@
 //! println!("Returned error code: {}", highlight.apply(&500));
 //! # }
 //! ```
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod style;
 pub mod terminal;

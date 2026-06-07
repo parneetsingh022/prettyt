@@ -22,7 +22,8 @@ unicode-width = ["dep:unicode-width"]
 terminal_size = ["dep:terminal_size"]
 
 [package.metadata.docs.rs]
-features = ["layout"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [package.metadata.release]
 pre-release-replacements = [
