@@ -1,15 +1,24 @@
+use core::{cmp, fmt};
+
+use crate::Style;
 use crate::layout::{LayoutDisplay, Renderable, SizeHint};
 use crate::terminal::visual_line_width;
-use core::{cmp, fmt};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Text<'a> {
     pub text: &'a str,
+    pub style: Option<Style>,
 }
 
 impl<'a> Text<'a> {
     pub fn new(text: &'a str) -> Self {
-        Self { text }
+        Self { text, style: None }
+    }
+
+    /// Builder pattern variant to dynamically chain styles ergonomics
+    pub fn with_style(mut self, style: Style) -> Self {
+        self.style = Some(style);
+        self
     }
 }
 
@@ -55,7 +64,10 @@ impl<'a> Renderable for Text<'a> {
 
     fn render_row(&self, row_idx: usize, _width: usize, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(line) = self.text.lines().nth(row_idx) {
-            f.write_str(line)?;
+            match self.style {
+                Some(style) => write!(f, "{}", style.apply(line))?,
+                None => f.write_str(line)?,
+            }
         }
         Ok(())
     }
@@ -64,6 +76,10 @@ impl<'a> Renderable for Text<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::layout::LayoutDisplay;
+    use crate::test_utils::MockTerminalGuard;
+    use crate::{Color, ColorLevel, Style};
 
     #[test]
     fn test_single_line_text() {
@@ -185,5 +201,81 @@ mod tests {
 
         let rendered_invalid = format!("{}", Wrapper(&txt, 5));
         assert_eq!(rendered_invalid, "");
+    }
+
+    #[test]
+    fn test_text_new_defaults_to_none_style() {
+        let text_element = Text::new("Hello, World!");
+        assert_eq!(text_element.text, "Hello, World!");
+        assert_eq!(text_element.style, None);
+    }
+
+    #[test]
+    fn test_text_with_style_builder() {
+        let custom_style = Style::new().fg(Color::Red).bold();
+        let text_element = Text::new("Styled Content").with_style(custom_style);
+
+        assert_eq!(text_element.style, Some(custom_style));
+    }
+
+    #[test]
+    fn test_render_row_without_style() {
+        let text_element = Text::new("Line 1\nLine 2");
+
+        // Setup a dummy standard Formatter target via a custom Display wrapper
+        let rendered_output = format!(
+            "{}",
+            LayoutDisplay {
+                layout: &text_element,
+                width: 80
+            }
+        );
+
+        // LayoutDisplay joins rows with newlines, check if it printed perfectly plain
+        assert_eq!(rendered_output, "Line 1\nLine 2");
+    }
+
+    #[test]
+    fn test_render_row_with_style_applies_ansi_escapes() {
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
+
+        let custom_style = Style::new().fg(Color::Red);
+        let text_element = Text::new("Alert").with_style(custom_style);
+
+        let rendered = format!(
+            "{}",
+            LayoutDisplay {
+                layout: &text_element,
+                width: 80
+            }
+        );
+
+        // Verify that prettyt wrapped the line row value and appended the trailing reset sequence (\x1b[0m)
+        assert_eq!(rendered, "\x1b[31mAlert\x1b[0m");
+    }
+
+    #[test]
+    fn test_row_width_ignores_ansi_escapes_via_visual_width() {
+        let _guard = MockTerminalGuard::acquire(ColorLevel::TrueColor);
+
+        let custom_style = Style::new().fg(Color::Green).bold();
+        let text_element = Text::new("Hello").with_style(custom_style);
+
+        // Even though the actual streamed row text will include escape characters,
+        // row_width evaluates only the underlying string slice via visual_line_width.
+        let layout_width = text_element.row_width(0, 80);
+        assert_eq!(layout_width, 5);
+    }
+
+    #[test]
+    fn test_total_rows_and_measure_bounds() {
+        let text_element = Text::new("Short\nVery Long Line Here");
+
+        assert_eq!(text_element.total_rows(80), 2);
+
+        let size_hint = text_element.measure(80);
+        // The longest line ("Very Long Line Here") has 19 characters
+        assert_eq!(size_hint.min, 19);
+        assert_eq!(size_hint.max, Some(19));
     }
 }
