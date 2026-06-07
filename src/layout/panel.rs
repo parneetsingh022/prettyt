@@ -116,58 +116,7 @@ impl<'a, T: Renderable> Renderable for Panel<'a, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::cmp;
-
-    // =========================================================================
-    // Minimal Mock Text Component to put inside the Panel for testing
-    // =========================================================================
-    struct MockText<'a> {
-        lines: Vec<&'a str>,
-    }
-
-    impl<'a> MockText<'a> {
-        fn new(lines: Vec<&'a str>) -> Self {
-            Self { lines }
-        }
-    }
-
-    impl<'a> Renderable for MockText<'a> {
-        fn measure(&self, max_width: usize) -> SizeHint {
-            let max_len = self
-                .lines
-                .iter()
-                .map(|l| visual_line_width(l))
-                .max()
-                .unwrap_or(0);
-            SizeHint {
-                min: cmp::min(max_len, max_width),
-                max: Some(cmp::min(max_len, max_width)),
-            }
-        }
-
-        fn total_rows(&self, _width: usize) -> usize {
-            self.lines.len()
-        }
-
-        fn row_width(&self, row_idx: usize, _width: usize) -> usize {
-            self.lines
-                .get(row_idx)
-                .map(|l| visual_line_width(l))
-                .unwrap_or(0)
-        }
-
-        fn render_row(
-            &self,
-            row_idx: usize,
-            _width: usize,
-            f: &mut fmt::Formatter<'_>,
-        ) -> fmt::Result {
-            if let Some(line) = self.lines.get(row_idx) {
-                f.write_str(line)?;
-            }
-            Ok(())
-        }
-    }
+    use crate::layout::Text;
 
     // Helper wrapper to render a specific row index to a String buffer
     struct RowRenderer<'a, T: Renderable>(&'a T, usize, usize);
@@ -183,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_panel_new_defaults() {
-        let content = MockText::new(vec!["hello"]);
+        let content = Text::new("hello");
         let panel = Panel::new(&content);
 
         assert!(panel.title.is_none());
@@ -191,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_panel_fluent_title() {
-        let content = MockText::new(vec!["hello"]);
+        let content = Text::new("hello");
         let panel = Panel::new(&content).title("My Title");
 
         assert_eq!(panel.title, Some("My Title"));
@@ -200,7 +149,8 @@ mod tests {
     #[test]
     fn test_panel_geometry_measure() {
         // Content needs 10 slots maximum
-        let content = MockText::new(vec!["1234567890"]);
+        let content = Text::new("1234567890");
+
         let panel = Panel::new(&content);
 
         // Panel must expand the inner hint by 2 horizontally for borders
@@ -216,7 +166,8 @@ mod tests {
 
     #[test]
     fn test_panel_total_rows() {
-        let content = MockText::new(vec!["Line 1", "Line 2", "Line 3"]);
+        let content = Text::new("Line 1\nLine 2\nLine 3");
+
         let panel = Panel::new(&content);
 
         // Panel expands vertical height by 2 (1 top border + 1 bottom border)
@@ -225,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_panel_row_width() {
-        let content = MockText::new(vec!["A"]);
+        let content = Text::new("A");
         let panel = Panel::new(&content);
 
         // Panels must always fill 100% of the target grid width allocation
@@ -235,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_panel_render_borders_without_title() {
-        let content = MockText::new(vec!["OK"]);
+        let content = Text::new("OK");
         let panel = Panel::new(&content);
         let width = 10;
 
@@ -254,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_panel_render_borders_with_title() {
-        let content = MockText::new(vec!["Go"]);
+        let content = Text::new("Go");
         let panel = Panel::new(&content).title("App");
         let width = 12; // content_width will be 10
 
@@ -269,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_panel_render_handling_asymmetrical_content_padding() {
-        let content = MockText::new(vec!["LongerLine", "Short"]);
+        let content = Text::new("LongerLine\nShort");
         let panel = Panel::new(&content);
         let width = 16; // content_width = 14
 
@@ -284,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_panel_layout_display_lazy_integration() {
-        let content = MockText::new(vec!["Hi"]);
+        let content = Text::new("Hi");
         let panel = Panel::new(&content).title("Box");
 
         let display = LayoutDisplay {
@@ -296,6 +247,27 @@ mod tests {
         let expected = "┌─Box──┐\n\
                               │Hi    │\n\
                               └──────┘";
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_panel_layout_for_nested_panels() {
+        let content = Text::new("HELLO");
+        let panel1 = Panel::new(&content);
+        let panel2 = Panel::new(&panel1);
+
+        let display = LayoutDisplay {
+            layout: &panel2,
+            width: 10,
+        };
+
+        let output = format!("{}", display);
+        let expected = "┌────────┐\n\
+                              │┌──────┐│\n\
+                              ││HELLO ││\n\
+                              │└──────┘│\n\
+                              └────────┘";
+
         assert_eq!(output, expected);
     }
 }
