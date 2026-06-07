@@ -52,7 +52,8 @@
 pub mod style;
 pub mod terminal;
 
-#[cfg(feature = "layout")]
+#[cfg(any(feature = "layout", doc))]
+#[cfg_attr(docsrs, doc(cfg(feature = "layout")))]
 pub mod layout;
 
 pub use style::css_colors::CSSColor;
