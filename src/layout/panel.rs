@@ -3,13 +3,13 @@ use crate::terminal::{terminal_width, visual_line_width};
 use core::fmt;
 
 pub struct Panel<'a, T: Renderable> {
-    pub content: T,
+    pub content: &'a T,
     pub title: Option<&'a str>,
 }
 
 impl<'a, T: Renderable> Panel<'a, T> {
     /// Creates a new panel structure enclosing a piece of layout content.
-    pub fn new(content: T) -> Self {
+    pub fn new(content: &'a T) -> Self {
         Self {
             content,
             title: None,
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_panel_new_defaults() {
         let content = MockText::new(vec!["hello"]);
-        let panel = Panel::new(content);
+        let panel = Panel::new(&content);
 
         assert!(panel.title.is_none());
     }
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn test_panel_fluent_title() {
         let content = MockText::new(vec!["hello"]);
-        let panel = Panel::new(content).title("My Title");
+        let panel = Panel::new(&content).title("My Title");
 
         assert_eq!(panel.title, Some("My Title"));
     }
@@ -201,7 +201,7 @@ mod tests {
     fn test_panel_geometry_measure() {
         // Content needs 10 slots maximum
         let content = MockText::new(vec!["1234567890"]);
-        let panel = Panel::new(content);
+        let panel = Panel::new(&content);
 
         // Panel must expand the inner hint by 2 horizontally for borders
         let hint = panel.measure(40);
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn test_panel_total_rows() {
         let content = MockText::new(vec!["Line 1", "Line 2", "Line 3"]);
-        let panel = Panel::new(content);
+        let panel = Panel::new(&content);
 
         // Panel expands vertical height by 2 (1 top border + 1 bottom border)
         assert_eq!(panel.total_rows(20), 5);
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn test_panel_row_width() {
         let content = MockText::new(vec!["A"]);
-        let panel = Panel::new(content);
+        let panel = Panel::new(&content);
 
         // Panels must always fill 100% of the target grid width allocation
         assert_eq!(panel.row_width(0, 40), 40);
@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn test_panel_render_borders_without_title() {
         let content = MockText::new(vec!["OK"]);
-        let panel = Panel::new(content);
+        let panel = Panel::new(&content);
         let width = 10;
 
         // Row 0: Top Border
@@ -255,7 +255,7 @@ mod tests {
     #[test]
     fn test_panel_render_borders_with_title() {
         let content = MockText::new(vec!["Go"]);
-        let panel = Panel::new(content).title("App");
+        let panel = Panel::new(&content).title("App");
         let width = 12; // content_width will be 10
 
         // Title padding math check:
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn test_panel_render_handling_asymmetrical_content_padding() {
         let content = MockText::new(vec!["LongerLine", "Short"]);
-        let panel = Panel::new(content);
+        let panel = Panel::new(&content);
         let width = 16; // content_width = 14
 
         // Row 1: LongerLine (Length 10 -> Padding spaces = 14 - 10 = 4)
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn test_panel_layout_display_lazy_integration() {
         let content = MockText::new(vec!["Hi"]);
-        let panel = Panel::new(content).title("Box");
+        let panel = Panel::new(&content).title("Box");
 
         let display = LayoutDisplay {
             layout: &panel,

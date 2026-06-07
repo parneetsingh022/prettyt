@@ -2,6 +2,7 @@ use crate::layout::{LayoutDisplay, Renderable, SizeHint};
 use crate::terminal::visual_line_width;
 use core::{cmp, fmt};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Text<'a> {
     pub text: &'a str,
 }
