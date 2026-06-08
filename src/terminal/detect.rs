@@ -56,6 +56,67 @@ pub enum ColorLevel {
     __Uninitialized,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Platform {
+    Windows,
+    Unix,
+}
+
+#[cfg(windows)]
+fn get_platform() -> Platform {
+    Platform::Windows
+}
+
+#[cfg(not(windows))]
+fn get_platform() -> Platform {
+    Platform::Unix
+}
+
+#[cfg(windows)]
+/// Enables ANSI escape codes (colors/formatting) in the Windows Console.
+///
+/// Returns `true` if successfully enabled or already active; `false` if the
+/// console handle is invalid (e.g., output is redirected) or the OS call fails.
+fn enable_virtual_terminal_processing() -> bool {
+    use windows_sys::Win32::System::Console::{
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle, STD_OUTPUT_HANDLE,
+        SetConsoleMode,
+    };
+
+    unsafe {
+        let handle = GetStdHandle(STD_OUTPUT_HANDLE);
+
+        // Invalid handle / redirected output
+        if handle.is_null() {
+            return false;
+        }
+
+        let mut mode = 0;
+
+        if GetConsoleMode(handle, &mut mode) == 0 {
+            return false;
+        }
+
+        if mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0 {
+            return true;
+        }
+
+        let new_mode = mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+
+        SetConsoleMode(handle, new_mode) != 0
+    }
+}
+
+#[cfg(not(windows))]
+/// Stub function for non-Windows platforms (macOS/Linux).
+///
+/// Returns `true` automatically because Unix-like terminals support
+/// ANSI escape codes out of the box.
+fn enable_virtual_terminal_processing() -> bool {
+    true
+}
+
 fn is_tty() -> bool {
     io::stdout().is_terminal()
 }
@@ -63,20 +124,33 @@ fn is_tty() -> bool {
 /// Returns the color level
 pub fn detect_color_level() -> ColorLevel {
     detect_color_level_inner(
+        get_platform(),
         is_tty(),
         env::var_os("NO_COLOR").is_some(),
         env::var("FORCE_COLOR").ok().as_deref(),
         env::var("COLORTERM").ok().as_deref(),
         env::var("TERM").ok().as_deref(),
+        env::var_os("WT_SESSION").is_some(),
+        enable_virtual_terminal_processing(),
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn detect_color_level_inner(
+    // Platform whose color-detection rules should be applied.
+    platform: Platform,
+
+    // Whether stdout is attached to an interactive terminal.
     is_tty: bool,
     no_color: bool,
     force_color: Option<&str>,
     colorterm: Option<&str>,
     term: Option<&str>,
+    windows_terminal: bool,
+
+    // Whether the current Windows console supports ANSI escape codes via
+    // ENABLE_VIRTUAL_TERMINAL_PROCESSING.
+    windows_vt_enabled: bool,
 ) -> ColorLevel {
     if no_color {
         return ColorLevel::None;
@@ -92,6 +166,21 @@ fn detect_color_level_inner(
 
     if !is_tty {
         return ColorLevel::None;
+    }
+
+    // Windows requires Virtual Terminal Processing for ANSI escapes.
+    // We verify it before advertising color support.
+    if platform == Platform::Windows && !windows_vt_enabled {
+        return ColorLevel::None;
+    }
+
+    // TERM/COLORTERM are frequently unset on Windows, so we additionally
+    // recognize Windows Terminal (WT_SESSION) as a reliable indicator of
+    // TrueColor support.
+    //
+    // If WT_SESSION was explicitly caught (e.g. spawned inside WT natively)
+    if windows_terminal {
+        return ColorLevel::TrueColor;
     }
 
     if let Some(ct) = colorterm
@@ -110,24 +199,33 @@ fn detect_color_level_inner(
         }
     }
 
-    // default fallback for TTYS
-    ColorLevel::Basic
+    // On Windows, if VT processing is available, assume TrueColor.
+    // Windows terminals often do not expose COLORTERM/TERM/WT_SESSION even when
+    // 24-bit color works, so a conservative fallback would under-detect many
+    // modern Windows consoles.
+    match platform {
+        Platform::Unix => ColorLevel::Basic,
+        Platform::Windows => ColorLevel::TrueColor,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ColorLevel;
 
     #[test]
-
     fn returns_none_when_not_tty_without_force_color() {
         assert_eq!(
             detect_color_level_inner(
-                false,
-                false,
-                None,
-                Some("truecolor"),
-                Some("xterm-256color")
+                Platform::Unix,         // Platform
+                false,                  // is_tty
+                false,                  // no_color
+                None,                   // force_color
+                Some("truecolor"),      // colorterm
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                false,                  // windows_vt_enabled
             ),
             ColorLevel::None
         );
@@ -136,7 +234,16 @@ mod tests {
     #[test]
     fn no_color_disables_color_without_force_color() {
         assert_eq!(
-            detect_color_level_inner(true, true, None, Some("truecolor"), Some("xterm-256color")),
+            detect_color_level_inner(
+                Platform::Unix,         // Platform
+                true,                   // is_tty
+                true,                   // no_color
+                None,                   // force_color
+                Some("truecolor"),      // colorterm
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                false,                  // windows_vt_enabled
+            ),
             ColorLevel::None
         );
     }
@@ -145,11 +252,14 @@ mod tests {
     fn force_color_overrides_not_tty() {
         assert_eq!(
             detect_color_level_inner(
-                false,
-                false,
-                Some("3"),
-                Some("truecolor"),
-                Some("xterm-256color")
+                Platform::Unix,         // Platform
+                false,                  // is_tty
+                false,                  // no_color
+                Some("3"),              // force_color
+                Some("truecolor"),      // colorterm
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                false,                  // windows_vt_enabled
             ),
             ColorLevel::TrueColor
         );
@@ -159,11 +269,14 @@ mod tests {
     fn no_color_overrides_force_color() {
         assert_eq!(
             detect_color_level_inner(
-                true,
-                true,
-                Some("3"),
-                Some("truecolor"),
-                Some("xterm-256color")
+                Platform::Unix,         // Platform
+                true,                   // is_tty
+                true,                   // no_color
+                Some("3"),              // force_color
+                Some("truecolor"),      // colorterm
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                false,                  // windows_vt_enabled
             ),
             ColorLevel::None
         );
@@ -173,11 +286,14 @@ mod tests {
     fn force_color_zero_disables_color() {
         assert_eq!(
             detect_color_level_inner(
-                true,
-                false,
-                Some("0"),
-                Some("truecolor"),
-                Some("xterm-256color")
+                Platform::Unix,         // Platform
+                true,                   // is_tty
+                false,                  // no_color
+                Some("0"),              // force_color
+                Some("truecolor"),      // colorterm
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                false,                  // windows_vt_enabled
             ),
             ColorLevel::None
         );
@@ -186,7 +302,16 @@ mod tests {
     #[test]
     fn force_color_one_returns_basic() {
         assert_eq!(
-            detect_color_level_inner(true, false, Some("1"), None, None),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                Some("1"),      // force_color
+                None,           // colorterm
+                None,           // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::Basic
         );
     }
@@ -194,7 +319,16 @@ mod tests {
     #[test]
     fn force_color_two_returns_ansi256() {
         assert_eq!(
-            detect_color_level_inner(true, false, Some("2"), None, None),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                Some("2"),      // force_color
+                None,           // colorterm
+                None,           // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::Ansi256
         );
     }
@@ -202,7 +336,16 @@ mod tests {
     #[test]
     fn force_color_three_returns_truecolor() {
         assert_eq!(
-            detect_color_level_inner(true, false, Some("3"), None, None),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                Some("3"),      // force_color
+                None,           // colorterm
+                None,           // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::TrueColor
         );
     }
@@ -210,7 +353,16 @@ mod tests {
     #[test]
     fn unknown_force_color_returns_truecolor() {
         assert_eq!(
-            detect_color_level_inner(true, false, Some("yes"), None, None),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                Some("yes"),    // force_color
+                None,           // colorterm
+                None,           // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::TrueColor
         );
     }
@@ -218,7 +370,16 @@ mod tests {
     #[test]
     fn colorterm_truecolor_returns_truecolor() {
         assert_eq!(
-            detect_color_level_inner(true, false, None, Some("truecolor"), None),
+            detect_color_level_inner(
+                Platform::Unix,    // Platform
+                true,              // is_tty
+                false,             // no_color
+                None,              // force_color
+                Some("truecolor"), // colorterm
+                None,              // term
+                false,             // windows_terminal
+                false,             // windows_vt_enabled
+            ),
             ColorLevel::TrueColor
         );
     }
@@ -226,7 +387,16 @@ mod tests {
     #[test]
     fn colorterm_24bit_returns_truecolor() {
         assert_eq!(
-            detect_color_level_inner(true, false, None, Some("24bit"), None),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                None,           // force_color
+                Some("24bit"),  // colorterm
+                None,           // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::TrueColor
         );
     }
@@ -234,7 +404,16 @@ mod tests {
     #[test]
     fn term_dumb_returns_none() {
         assert_eq!(
-            detect_color_level_inner(true, false, None, None, Some("dumb")),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                None,           // force_color
+                None,           // colorterm
+                Some("dumb"),   // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::None
         );
     }
@@ -242,7 +421,16 @@ mod tests {
     #[test]
     fn term_256color_returns_ansi256() {
         assert_eq!(
-            detect_color_level_inner(true, false, None, None, Some("xterm-256color")),
+            detect_color_level_inner(
+                Platform::Unix,         // Platform
+                true,                   // is_tty
+                false,                  // no_color
+                None,                   // force_color
+                None,                   // colorterm
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                false,                  // windows_vt_enabled
+            ),
             ColorLevel::Ansi256
         );
     }
@@ -250,7 +438,16 @@ mod tests {
     #[test]
     fn fallback_returns_basic() {
         assert_eq!(
-            detect_color_level_inner(true, false, None, None, Some("xterm")),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                None,           // force_color
+                None,           // colorterm
+                Some("xterm"),  // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::Basic
         );
     }
@@ -258,7 +455,16 @@ mod tests {
     #[test]
     fn colorterm_unknown_falls_through_to_term() {
         assert_eq!(
-            detect_color_level_inner(true, false, None, Some("ansi"), Some("xterm-256color")),
+            detect_color_level_inner(
+                Platform::Unix,         // Platform
+                true,                   // is_tty
+                false,                  // no_color
+                None,                   // force_color
+                Some("unknown"),        // colorterm
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                false,                  // windows_vt_enabled
+            ),
             ColorLevel::Ansi256
         );
     }
@@ -266,7 +472,16 @@ mod tests {
     #[test]
     fn no_colorterm_no_term_fallback_basic() {
         assert_eq!(
-            detect_color_level_inner(true, false, None, None, None),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                None,           // force_color
+                None,           // colorterm
+                None,           // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::Basic
         );
     }
@@ -274,8 +489,102 @@ mod tests {
     #[test]
     fn term_unknown_falls_back_basic() {
         assert_eq!(
-            detect_color_level_inner(true, false, None, None, Some("vt100")),
+            detect_color_level_inner(
+                Platform::Unix, // Platform
+                true,           // is_tty
+                false,          // no_color
+                None,           // force_color
+                None,           // colorterm
+                Some("vt100"),  // term
+                false,          // windows_terminal
+                false,          // windows_vt_enabled
+            ),
             ColorLevel::Basic
+        );
+    }
+
+    #[test]
+    fn windows_without_vt_returns_none() {
+        assert_eq!(
+            detect_color_level_inner(
+                Platform::Windows, // Platform
+                true,              // is_tty
+                false,             // no_color
+                None,              // force_color
+                None,              // colorterm
+                None,              // term
+                false,             // windows_terminal
+                false,             // windows_vt_enabled
+            ),
+            ColorLevel::None
+        );
+    }
+
+    #[test]
+    fn windows_with_vt_defaults_to_truecolor() {
+        assert_eq!(
+            detect_color_level_inner(
+                Platform::Windows, // Platform
+                true,              // is_tty
+                false,             // no_color
+                None,              // force_color
+                None,              // colorterm
+                None,              // term
+                false,             // windows_terminal
+                true,              // windows_vt_enabled
+            ),
+            ColorLevel::TrueColor
+        );
+    }
+
+    #[test]
+    fn windows_terminal_returns_truecolor() {
+        assert_eq!(
+            detect_color_level_inner(
+                Platform::Windows, // Platform
+                true,              // is_tty
+                false,             // no_color
+                None,              // force_color
+                None,              // colorterm
+                None,              // term
+                true,              // windows_terminal
+                true,              // windows_vt_enabled
+            ),
+            ColorLevel::TrueColor
+        );
+    }
+
+    #[test]
+    fn windows_force_color_overrides_vt_disabled() {
+        assert_eq!(
+            detect_color_level_inner(
+                Platform::Windows, // Platform
+                true,              // is_tty
+                false,             // no_color
+                Some("3"),         // force_color
+                None,              // colorterm
+                None,              // term
+                false,             // windows_terminal
+                false,             // windows_vt_enabled
+            ),
+            ColorLevel::TrueColor
+        );
+    }
+
+    #[test]
+    fn windows_no_color_overrides_everything() {
+        assert_eq!(
+            detect_color_level_inner(
+                Platform::Windows,      // Platform
+                true,                   // is_tty
+                true,                   // no_color
+                Some("3"),              // force_color
+                Some("truecolor"),      // colorterm
+                Some("xterm-256color"), // term
+                true,                   // windows_terminal
+                true,                   // windows_vt_enabled
+            ),
+            ColorLevel::None
         );
     }
 }

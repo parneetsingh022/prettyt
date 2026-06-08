@@ -15,6 +15,12 @@ license = "Apache-2.0"
 terminal_size = { version = "0.4.4", optional = true }
 unicode-width = { version = "0.2.2", optional = true }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_System_Console",
+  "Win32_Foundation"
+] }
+
 [features]
 default = []
 layout = ["unicode-width", "terminal_size"]
