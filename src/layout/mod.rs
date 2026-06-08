@@ -1,3 +1,45 @@
+//! Layout primitives for composing structured terminal output.
+//!
+//! This module provides high-level building blocks for arranging and formatting
+//! terminal content. These components abstract away raw styling APIs, offering
+//! reusable structures like panels and text blocks to simplify UI construction.
+//!
+//! > To use layout primitives like `Panel` or `Text`, you must explicitly
+//! > enable the `layout` feature in your `Cargo.toml`.
+//! >
+//! > ```toml
+//! > prettyt = { version = "*", features = ["layout"] }
+//! > ```
+//!
+//! # Components
+//!
+//! When the `layout` feature is enabled, the following components become available:
+//!
+//! | Component | Description |
+//! | :--- | :--- |
+//! | [`panel`] | Draws text framed inside a customizable, bordered box. |
+//! | [`text`] | Handles layout-aware, styled, or structured text blocks. |
+//!
+//! # Examples
+//!
+//! Creating and displaying a simple bordered panel:
+//!
+//! ```rust,no_run
+//! use prettyt::layout::{Panel, Text};
+//!
+//! let text = Text::new("Hello from prettyt");
+//! let panel = Panel::new(&text);
+//!
+//! // Prints a framed message to the terminal
+//! println!("{}", panel);
+//! ```
+//!
+//! Expected output:
+//! ```text
+//! ┌──────────────────────┐
+//! │  Hello from prettyt  │
+//! └──────────────────────┘
+//! ```
 use core::fmt;
 
 pub mod panel;
