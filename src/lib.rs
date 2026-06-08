@@ -51,7 +51,7 @@
 pub mod style;
 pub mod terminal;
 
-#[cfg(any(feature = "layout", doc))]
+#[cfg(feature = "layout")]
 #[cfg_attr(docsrs, doc(cfg(feature = "layout")))]
 pub mod layout;
 
