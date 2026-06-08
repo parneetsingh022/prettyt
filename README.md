@@ -20,7 +20,6 @@ A lightweight, environment-aware terminal text styling library with automatic co
 * NO_COLOR support
 * Fluent builder-style API
 * Declarative styling macros
-* Zero dependencies
 * Lightweight and fast
 
 ## Quick Start

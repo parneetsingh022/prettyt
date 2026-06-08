@@ -6,19 +6,15 @@
 //!
 //! > To use layout primitives like `Panel` or `Text`, you must explicitly
 //! > enable the `layout` feature in your `Cargo.toml`.
-//! >
-//! > ```toml
-//! > prettyt = { version = "*", features = ["layout"] }
-//! > ```
 //!
 //! # Components
 //!
 //! When the `layout` feature is enabled, the following components become available:
 //!
-//! | Component | Description |
-//! | :--- | :--- |
-//! | [`panel`] | Draws text framed inside a customizable, bordered box. |
-//! | [`text`] | Handles layout-aware, styled, or structured text blocks. |
+//! | Component | Description                                                   |
+//! | :---      | :---                                                          |
+//! | [`panel`] | Draws text framed inside a customizable, bordered box.        |
+//! | [`text`]  | A text widget that can be displayed within the layout system. |
 //!
 //! # Examples
 //!

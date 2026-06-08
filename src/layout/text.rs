@@ -1,3 +1,33 @@
+//! A text widget that can be displayed within the layout system.
+//!
+//! `Text` displays one or more lines of text and integrates with the layout
+//! system for sizing and rendering.
+//!
+//! Text can be displayed as-is or customized with a [`Style`].
+//!
+//! # Examples
+//!
+//! ```rust
+//! use prettyt::layout::Text;
+//! let text = Text::new("Hello, world!");
+//!
+//! // `Text` implements `core::fmt::Display`, so it can be printed directly.
+//! println!("{}", text);
+//! ```
+//!
+//! Applying a style:
+//!
+//! ```rust
+//! use prettyt::{CSSColor, make_style};
+//! use prettyt::layout::Text;
+//!
+//! // Create a bold red-on-grey style and apply it to the text widget.
+//! let style = make_style!(fg(CSSColor::RED), bg(CSSColor::GREY), bold);
+//! let text = Text::new("Warning").with_style(style);
+//!
+//! println!("{}", text);
+//! ```
+//!
 use core::{cmp, fmt};
 
 use crate::Style;
@@ -6,16 +36,20 @@ use crate::terminal::visual_line_width;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Text<'a> {
+    /// The text to display.
     pub text: &'a str,
+
+    /// Optional style used when rendering.
     pub style: Option<Style>,
 }
 
 impl<'a> Text<'a> {
+    /// Creates a new text widget.
     pub fn new(text: &'a str) -> Self {
         Self { text, style: None }
     }
 
-    /// Builder pattern variant to dynamically chain styles ergonomics
+    /// Returns this text widget with the given style applied.
     pub fn with_style(mut self, style: Style) -> Self {
         self.style = Some(style);
         self

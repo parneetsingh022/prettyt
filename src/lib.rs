@@ -1,14 +1,12 @@
 //! # `prettyt`
 //!
-//! A lightweight, zero-dependency, environment-aware ANSI terminal text styling library
+//! A lightweight, environment-aware ANSI terminal text styling library
 //! featuring automatic color capability downsampling.
 //!
 //! ## Core Features
 //! * **Automatic Detection**: Dynamically inspects the terminal environment (see the [`terminal`] submodule) to safeguard layouts.
-//! * **Smart Downsampling**: Gracefully downsamples `TrueColor` (RGB) colors to 256-color palettes or basic 16-color ANSI buckets depending on what the host terminal supports.
+//! * **Smart Downsampling**: Gracefully downsamples `TrueColor` (RGB) colors to `256-color` palettes or `basic` 16-color ANSI buckets depending on what the host terminal supports.
 //! * **Zero-Allocation Architecture**: Evaluation happens lazily during the formatting pass via `fmt::Display`, preventing heap allocations and copies.
-//! * **Zero Dependencies**: Keeps your dependency tree completely flat and compiles exceptionally fast.
-//! * **Fluent & Declarative APIs**: Choose between a builder-pattern `Style` struct or clean, compile-checked macros.
 //!
 //! ## Quick Start
 //!

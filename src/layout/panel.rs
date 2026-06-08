@@ -1,14 +1,50 @@
+//! Draws text framed inside a customizable, bordered box.
+//!
+//! `Panel` wraps another layout component in a box border and can display an
+//! optional title in the top border.
+//!
+//! Panels can also be nested to create more complex layouts.
+//!
+//! # Examples
+//!
+//! Basic usage:
+//!
+//! ```rust
+//! use prettyt::layout::{Panel, Text};
+//!
+//! let text = Text::new("Hello");
+//! let panel = Panel::new(&text).title("Greeting");
+//!
+//! println!("{}", panel);
+//! ```
+//!
+//! Nested panels:
+//!
+//! ```rust
+//! use prettyt::layout::{Panel, Text};
+//!
+//! let text = Text::new("Hello");
+//! let inner = Panel::new(&text).title("Inner");
+//! let outer = Panel::new(&inner).title("Outer");
+//!
+//! println!("{}", outer);
+//! ```
+
 use crate::layout::{LayoutDisplay, Renderable, SizeHint};
 use crate::terminal::{terminal_width, visual_line_width};
 use core::fmt;
 
+/// A bordered container around renderable content.
 pub struct Panel<'a, T: Renderable> {
+    /// The content displayed inside the panel.
     pub content: &'a T,
+
+    /// The title shown in the top border (Optional).
     pub title: Option<&'a str>,
 }
 
 impl<'a, T: Renderable> Panel<'a, T> {
-    /// Creates a new panel structure enclosing a piece of layout content.
+    /// Creates a new panel around the given content.
     pub fn new(content: &'a T) -> Self {
         Self {
             content,
