@@ -31,7 +31,7 @@
 //! ```
 
 use crate::layout::{LayoutDisplay, Renderable, SizeHint};
-use crate::terminal::{terminal_width, visual_line_width};
+use crate::terminal::{terminal_width, truncate_to_visual_width, visual_line_width};
 use core::fmt;
 
 /// A bordered container around renderable content.
@@ -98,17 +98,14 @@ impl<'a, T: Renderable> Renderable for Panel<'a, T> {
             // Top Border
             if let Some(title) = self.title {
                 let max_title_len = content_width.saturating_sub(2);
-                let truncated_title = if visual_line_width(title) > max_title_len {
-                    &title[..max_title_len]
-                } else {
-                    title
-                };
+                let truncated_title = truncate_to_visual_width(title, max_title_len);
+                let truncated_title_width = visual_line_width(truncated_title);
 
                 f.write_str("┌─")?;
                 f.write_str(truncated_title)?;
                 f.write_str("─")?;
 
-                let remaining = content_width.saturating_sub(visual_line_width(title) + 2);
+                let remaining = content_width.saturating_sub(truncated_title_width + 2);
                 for _ in 0..remaining {
                     f.write_str("─")?;
                 }
@@ -305,5 +302,53 @@ mod tests {
                               └────────┘";
 
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_panel_title_truncates_before_emoji_when_it_does_not_fit() {
+        let content = Text::new("OK");
+        let panel = Panel::new(&content).title("Build 🚀 Done");
+        let width = 10; // content_width = 8, max title width = 6
+
+        let top = format!("{}", RowRenderer(&panel, 0, width));
+
+        assert_eq!(top, "┌─Build ─┐");
+        assert_eq!(visual_line_width(&top), width);
+    }
+
+    #[test]
+    fn test_panel_title_keeps_emoji_when_it_fits() {
+        let content = Text::new("OK");
+        let panel = Panel::new(&content).title("Go 🚀");
+        let width = 9; // content_width = 7, max title width = 5
+
+        let top = format!("{}", RowRenderer(&panel, 0, width));
+
+        assert_eq!(top, "┌─Go 🚀─┐");
+        assert_eq!(visual_line_width(&top), width);
+    }
+
+    #[test]
+    fn test_panel_title_truncates_before_cjk_when_it_does_not_fit() {
+        let content = Text::new("OK");
+        let panel = Panel::new(&content).title("Title 华文");
+        let width = 11; // content_width = 9, max title width = 7
+
+        let top = format!("{}", RowRenderer(&panel, 0, width));
+
+        assert_eq!(top, "┌─Title ──┐");
+        assert_eq!(visual_line_width(&top), width);
+    }
+
+    #[test]
+    fn test_panel_title_keeps_cjk_when_it_fits() {
+        let content = Text::new("OK");
+        let panel = Panel::new(&content).title("Hi 华");
+        let width = 10; // content_width = 8, max title width = 6
+
+        let top = format!("{}", RowRenderer(&panel, 0, width));
+
+        assert_eq!(top, "┌─Hi 华──┐");
+        assert_eq!(visual_line_width(&top), width);
     }
 }

@@ -56,7 +56,7 @@ pub mod registry;
 pub(crate) mod width;
 
 #[cfg(feature = "unicode-width")]
-pub(crate) use width::visual_line_width;
+pub(crate) use width::{truncate_to_visual_width, visual_line_width};
 
 #[cfg(feature = "terminal_size")]
 pub(crate) use width::terminal_width;
