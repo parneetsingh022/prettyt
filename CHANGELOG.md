@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
 ### Added
 * **Global Control Overrides:** Introduced thread-safe `set_override(level: ColorLevel)` and `clear_override()` APIs, allowing developers to programmatically bypass environment cascades and explicitly lock down terminal styling preferences at runtime.
 
