@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed incorrect `FORCE_COLOR` handling where values such as `true`, `false`, `yes`, `no`, `on`, and `off` were not interpreted correctly. `FORCE_COLOR` levels now follow expected color-detection behavior, with `1`, `2`, and `3` mapping to Basic, ANSI 256-color, and TrueColor support respectively.
+
+- Fixed Windows terminal detection and console handling to more accurately determine color support in modern Windows environments.
+
+- Fixed color detection for Apple Terminal (`Terminal.app`) by correctly reporting 256-color support when appropriate.
+
+- Fixed color detection on Unix-like terminals running on Windows (e.g. Git Bash, MSYS2, MinTTY, and Cygwin), where ANSI color support could be incorrectly disabled when Windows Virtual Terminal Processing was unavailable.
+
 ## [0.3.0] - 2026-06-08
 
 ### Added

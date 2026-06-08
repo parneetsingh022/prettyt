@@ -66,12 +66,12 @@ enum Platform {
 }
 
 #[cfg(windows)]
-fn get_platform() -> Platform {
+fn platform() -> Platform {
     Platform::Windows
 }
 
 #[cfg(not(windows))]
-fn get_platform() -> Platform {
+fn platform() -> Platform {
     Platform::Unix
 }
 
@@ -81,16 +81,19 @@ fn get_platform() -> Platform {
 /// Returns `true` if successfully enabled or already active; `false` if the
 /// console handle is invalid (e.g., output is redirected) or the OS call fails.
 fn enable_virtual_terminal_processing() -> bool {
-    use windows_sys::Win32::System::Console::{
-        ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle, STD_OUTPUT_HANDLE,
-        SetConsoleMode,
+    use windows_sys::Win32::{
+        Foundation::INVALID_HANDLE_VALUE,
+        System::Console::{
+            ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle, STD_OUTPUT_HANDLE,
+            SetConsoleMode,
+        },
     };
 
     unsafe {
         let handle = GetStdHandle(STD_OUTPUT_HANDLE);
 
         // Invalid handle / redirected output
-        if handle.is_null() {
+        if handle.is_null() || handle == INVALID_HANDLE_VALUE {
             return false;
         }
 
@@ -119,93 +122,112 @@ fn enable_virtual_terminal_processing() -> bool {
     true
 }
 
-fn is_tty() -> bool {
+fn stdout_is_tty() -> bool {
     io::stdout().is_terminal()
+}
+
+#[cfg(windows)]
+fn unix_like_terminal_on_windows() -> bool {
+    let is_msys_like = env::var("MSYSTEM")
+        .map(|v| {
+            let v = v.to_ascii_uppercase();
+            v.contains("MINGW") || v.contains("MSYS") || v.contains("CLANG")
+        })
+        .unwrap_or(false);
+
+    let is_cygwin_like = env::var("TERM")
+        .map(|v| v.to_ascii_lowercase().contains("cygwin"))
+        .unwrap_or(false);
+
+    let is_mintty_like = env::var_os("MINTTY_PID").is_some();
+
+    is_msys_like || is_cygwin_like || is_mintty_like
+}
+
+#[cfg(not(windows))]
+fn unix_like_terminal_on_windows() -> bool {
+    false
+}
+
+#[derive(Debug)]
+struct ColorDetectionInput {
+    platform: Platform,
+    is_tty: bool,
+    no_color: bool,
+    force_color: Option<String>,
+    colorterm: Option<String>,
+    term: Option<String>,
+    windows_terminal: bool,
+    windows_vt_enabled: bool,
+    term_program: Option<String>,
+    unix_like_on_windows: bool,
 }
 
 /// Returns the color level
 pub fn detect_color_level() -> ColorLevel {
-    detect_color_level_inner(
-        get_platform(),
-        is_tty(),
-        env::var_os("NO_COLOR").is_some(),
-        env::var("FORCE_COLOR").ok().as_deref(),
-        env::var("COLORTERM").ok().as_deref(),
-        env::var("TERM").ok().as_deref(),
-        env::var_os("WT_SESSION").is_some(),
-        enable_virtual_terminal_processing(),
-        env::var("TERM_PROGRAM").ok().as_deref(),
-    )
+    detect_color_level_inner(ColorDetectionInput {
+        platform: platform(),
+        is_tty: stdout_is_tty(),
+        no_color: env::var_os("NO_COLOR").is_some(),
+        force_color: env::var("FORCE_COLOR").ok(),
+        colorterm: env::var("COLORTERM").ok(),
+        term: env::var("TERM").ok(),
+        windows_terminal: env::var_os("WT_SESSION").is_some(),
+        windows_vt_enabled: enable_virtual_terminal_processing(),
+        term_program: env::var("TERM_PROGRAM").ok(),
+        unix_like_on_windows: unix_like_terminal_on_windows(),
+    })
 }
 
-#[allow(clippy::too_many_arguments)]
-fn detect_color_level_inner(
-    // Platform whose color-detection rules should be applied.
-    platform: Platform,
-
-    // Whether stdout is attached to an interactive terminal.
-    is_tty: bool,
-    no_color: bool,
-    force_color: Option<&str>,
-    colorterm: Option<&str>,
-    term: Option<&str>,
-    windows_terminal: bool,
-
-    // Whether the current Windows console supports ANSI escape codes via
-    // ENABLE_VIRTUAL_TERMINAL_PROCESSING.
-    windows_vt_enabled: bool,
-
-    term_program: Option<&str>,
-) -> ColorLevel {
-    if no_color {
+fn detect_color_level_inner(input: ColorDetectionInput) -> ColorLevel {
+    if input.no_color {
         return ColorLevel::None;
     }
 
-    match force_color {
-        Some("0") => return ColorLevel::None,
-        Some("1") => return ColorLevel::Basic,
-        Some("2") => return ColorLevel::Ansi256,
-        Some(_) => return ColorLevel::TrueColor,
-        None => {}
+    if let Some(force) = input.force_color.as_deref() {
+        return parse_force_color(force);
     }
 
-    if !is_tty {
+    if !input.is_tty {
         return ColorLevel::None;
     }
 
-    // Windows requires Virtual Terminal Processing for ANSI escapes.
-    // We verify it before advertising color support.
-    if platform == Platform::Windows && !windows_vt_enabled {
-        return ColorLevel::None;
-    }
-
-    // TERM/COLORTERM are frequently unset on Windows, so we additionally
-    // recognize Windows Terminal (WT_SESSION) as a reliable indicator of
-    // TrueColor support.
-    //
-    // If WT_SESSION was explicitly caught (e.g. spawned inside WT natively)
-    if windows_terminal {
-        return ColorLevel::TrueColor;
-    }
-
-    if let Some(ct) = colorterm
-        && (ct.contains("truecolor") || ct.contains("24bit"))
+    if input.platform == Platform::Windows
+        && !input.windows_vt_enabled
+        && !input.unix_like_on_windows
     {
+        return ColorLevel::None;
+    }
+
+    if input.windows_terminal {
         return ColorLevel::TrueColor;
+    }
+
+    if let Some(colorterm) = input.colorterm.as_deref() {
+        let colorterm = colorterm.to_ascii_lowercase();
+
+        if colorterm.contains("truecolor") || colorterm.contains("24bit") {
+            return ColorLevel::TrueColor;
+        }
     }
 
     // Explicit Apple Terminal (Terminal.app) Rule:
     // It leaves COLORTERM blank and supports 256 colors perfectly, but lacks 24-bit RGB support.
-    if let Some("Apple_Terminal") = term_program {
-        // Only return Ansi256 if TERM doesn't explicitly restrict it to "dumb"
-        if term != Some("dumb") {
-            return ColorLevel::Ansi256;
-        }
+    if input.term_program.as_deref() == Some("Apple_Terminal")
+        && input.term.as_deref() != Some("dumb")
+    {
+        return ColorLevel::Ansi256;
     }
 
-    if let Some(term) = term {
+    if let Some(term) = input.term.as_deref() {
+        let term = term.to_ascii_lowercase();
+
         if term == "dumb" {
             return ColorLevel::None;
+        }
+
+        if term.contains("truecolor") || term.contains("24bit") {
+            return ColorLevel::TrueColor;
         }
 
         if term.contains("256color") {
@@ -217,9 +239,89 @@ fn detect_color_level_inner(
     // Windows terminals often do not expose COLORTERM/TERM/WT_SESSION even when
     // 24-bit color works, so a conservative fallback would under-detect many
     // modern Windows consoles.
-    match platform {
+    match input.platform {
         Platform::Unix => ColorLevel::Basic,
         Platform::Windows => ColorLevel::TrueColor,
+    }
+}
+
+fn parse_force_color(value: &str) -> ColorLevel {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "0" | "false" | "no" | "off" => ColorLevel::None,
+        "" | "1" | "true" | "yes" | "on" => ColorLevel::Basic,
+        "2" => ColorLevel::Ansi256,
+        "3" => ColorLevel::TrueColor,
+        _ => ColorLevel::TrueColor,
+    }
+}
+
+#[test]
+fn parse_force_color_disables_color_values() {
+    for value in ["0", "false", "no", "off"] {
+        assert_eq!(parse_force_color(value), ColorLevel::None, "value={value}");
+    }
+}
+
+#[test]
+fn parse_force_color_basic_values() {
+    for value in ["", "1", "true", "yes", "on"] {
+        assert_eq!(parse_force_color(value), ColorLevel::Basic, "value={value}");
+    }
+}
+
+#[test]
+fn parse_force_color_two_returns_ansi256() {
+    assert_eq!(parse_force_color("2"), ColorLevel::Ansi256);
+}
+
+#[test]
+fn parse_force_color_three_returns_truecolor() {
+    assert_eq!(parse_force_color("3"), ColorLevel::TrueColor);
+}
+
+#[test]
+fn parse_force_color_unknown_values_default_to_truecolor() {
+    for value in ["4", "always", "maybe", "random", "256", "truecolor"] {
+        assert_eq!(
+            parse_force_color(value),
+            ColorLevel::TrueColor,
+            "value={value}"
+        );
+    }
+}
+
+#[test]
+fn parse_force_color_is_case_insensitive() {
+    for value in ["FALSE", "False", "NO", "Off", "TRUE", "Yes", "ON"] {
+        let expected = match value.to_ascii_lowercase().as_str() {
+            "false" | "no" | "off" => ColorLevel::None,
+            "true" | "yes" | "on" => ColorLevel::Basic,
+            _ => unreachable!(),
+        };
+
+        assert_eq!(parse_force_color(value), expected, "value={value}");
+    }
+}
+
+#[test]
+fn parse_force_color_trims_whitespace() {
+    let cases = [
+        (" 0 ", ColorLevel::None),
+        ("\tfalse\n", ColorLevel::None),
+        (" no ", ColorLevel::None),
+        (" off ", ColorLevel::None),
+        ("   ", ColorLevel::Basic),
+        (" 1 ", ColorLevel::Basic),
+        ("\ttrue\n", ColorLevel::Basic),
+        (" yes ", ColorLevel::Basic),
+        (" on ", ColorLevel::Basic),
+        (" 2 ", ColorLevel::Ansi256),
+        (" 3 ", ColorLevel::TrueColor),
+        (" random ", ColorLevel::TrueColor),
+    ];
+
+    for (value, expected) in cases {
+        assert_eq!(parse_force_color(value), expected, "value={value:?}");
     }
 }
 
@@ -228,453 +330,530 @@ mod tests {
     use super::*;
     use crate::ColorLevel;
 
+    #[cfg(test)]
+    fn input() -> ColorDetectionInput {
+        ColorDetectionInput {
+            platform: Platform::Unix,
+            is_tty: true,
+            no_color: false,
+            force_color: None,
+            colorterm: None,
+            term: None,
+            windows_terminal: false,
+            windows_vt_enabled: false,
+            term_program: None,
+            unix_like_on_windows: false,
+        }
+    }
+
     #[test]
     fn returns_none_when_not_tty_without_force_color() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,         // Platform
-                false,                  // is_tty
-                false,                  // no_color
-                None,                   // force_color
-                Some("truecolor"),      // colorterm
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                false,                  // windows_vt_enabled
-                None,                   // term_program
-            ),
-            ColorLevel::None
-        );
+        let mut input = input();
+        input.is_tty = false;
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
     }
 
     #[test]
     fn no_color_disables_color_without_force_color() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,         // Platform
-                true,                   // is_tty
-                true,                   // no_color
-                None,                   // force_color
-                Some("truecolor"),      // colorterm
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                false,                  // windows_vt_enabled
-                None,                   // term_program
-            ),
-            ColorLevel::None
-        );
+        let mut input = input();
+        input.no_color = true;
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
     }
 
     #[test]
     fn force_color_overrides_not_tty() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,         // Platform
-                false,                  // is_tty
-                false,                  // no_color
-                Some("3"),              // force_color
-                Some("truecolor"),      // colorterm
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                false,                  // windows_vt_enabled
-                None,                   // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.is_tty = false;
+        input.force_color = Some("3".to_string());
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn no_color_overrides_force_color() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,         // Platform
-                true,                   // is_tty
-                true,                   // no_color
-                Some("3"),              // force_color
-                Some("truecolor"),      // colorterm
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                false,                  // windows_vt_enabled
-                None,                   // term_program
-            ),
-            ColorLevel::None
-        );
+        let mut input = input();
+        input.no_color = true;
+        input.force_color = Some("3".to_string());
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
     }
 
     #[test]
     fn force_color_zero_disables_color() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,         // Platform
-                true,                   // is_tty
-                false,                  // no_color
-                Some("0"),              // force_color
-                Some("truecolor"),      // colorterm
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                false,                  // windows_vt_enabled
-                None,                   // term_program
-            ),
-            ColorLevel::None
-        );
+        let mut input = input();
+        input.force_color = Some("0".to_string());
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
     }
 
     #[test]
     fn force_color_one_returns_basic() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                Some("1"),      // force_color
-                None,           // colorterm
-                None,           // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::Basic
-        );
+        let mut input = input();
+        input.force_color = Some("1".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
     }
 
     #[test]
     fn force_color_two_returns_ansi256() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                Some("2"),      // force_color
-                None,           // colorterm
-                None,           // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::Ansi256
-        );
+        let mut input = input();
+        input.force_color = Some("2".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
     }
 
     #[test]
     fn force_color_three_returns_truecolor() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                Some("3"),      // force_color
-                None,           // colorterm
-                None,           // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.force_color = Some("3".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn unknown_force_color_returns_truecolor() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                Some("yes"),    // force_color
-                None,           // colorterm
-                None,           // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.force_color = Some("unknown".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn colorterm_truecolor_returns_truecolor() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,    // Platform
-                true,              // is_tty
-                false,             // no_color
-                None,              // force_color
-                Some("truecolor"), // colorterm
-                None,              // term
-                false,             // windows_terminal
-                false,             // windows_vt_enabled
-                None,              // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.colorterm = Some("truecolor".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn colorterm_24bit_returns_truecolor() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                None,           // force_color
-                Some("24bit"),  // colorterm
-                None,           // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.colorterm = Some("24bit".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn term_dumb_returns_none() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                None,           // force_color
-                None,           // colorterm
-                Some("dumb"),   // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::None
-        );
+        let mut input = input();
+        input.term = Some("dumb".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
     }
 
     #[test]
     fn term_256color_returns_ansi256() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,         // Platform
-                true,                   // is_tty
-                false,                  // no_color
-                None,                   // force_color
-                None,                   // colorterm
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                false,                  // windows_vt_enabled
-                None,                   // term_program
-            ),
-            ColorLevel::Ansi256
-        );
+        let mut input = input();
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
     }
 
     #[test]
     fn fallback_returns_basic() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                None,           // force_color
-                None,           // colorterm
-                Some("xterm"),  // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::Basic
-        );
+        let mut input = input();
+        input.term = Some("xterm".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
     }
 
     #[test]
     fn colorterm_unknown_falls_through_to_term() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,         // Platform
-                true,                   // is_tty
-                false,                  // no_color
-                None,                   // force_color
-                Some("unknown"),        // colorterm
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                false,                  // windows_vt_enabled
-                None,                   // term_program
-            ),
-            ColorLevel::Ansi256
-        );
+        let mut input = input();
+        input.colorterm = Some("unknown".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
     }
 
     #[test]
     fn no_colorterm_no_term_fallback_basic() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                None,           // force_color
-                None,           // colorterm
-                None,           // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::Basic
-        );
+        let input = input();
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
     }
 
     #[test]
     fn term_unknown_falls_back_basic() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix, // Platform
-                true,           // is_tty
-                false,          // no_color
-                None,           // force_color
-                None,           // colorterm
-                Some("vt100"),  // term
-                false,          // windows_terminal
-                false,          // windows_vt_enabled
-                None,           // term_program
-            ),
-            ColorLevel::Basic
-        );
+        let mut input = input();
+        input.term = Some("vt100".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
     }
 
     #[test]
     fn windows_without_vt_returns_none() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Windows, // Platform
-                true,              // is_tty
-                false,             // no_color
-                None,              // force_color
-                None,              // colorterm
-                None,              // term
-                false,             // windows_terminal
-                false,             // windows_vt_enabled
-                None,              // term_program
-            ),
-            ColorLevel::None
-        );
+        let mut input = input();
+        input.platform = Platform::Windows;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
     }
 
     #[test]
     fn windows_with_vt_defaults_to_truecolor() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Windows, // Platform
-                true,              // is_tty
-                false,             // no_color
-                None,              // force_color
-                None,              // colorterm
-                None,              // term
-                false,             // windows_terminal
-                true,              // windows_vt_enabled
-                None,              // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = true;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn windows_terminal_returns_truecolor() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Windows, // Platform
-                true,              // is_tty
-                false,             // no_color
-                None,              // force_color
-                None,              // colorterm
-                None,              // term
-                true,              // windows_terminal
-                true,              // windows_vt_enabled
-                None,              // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_terminal = true;
+        input.windows_vt_enabled = true;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn windows_force_color_overrides_vt_disabled() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Windows, // Platform
-                true,              // is_tty
-                false,             // no_color
-                Some("3"),         // force_color
-                None,              // colorterm
-                None,              // term
-                false,             // windows_terminal
-                false,             // windows_vt_enabled
-                None,              // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.force_color = Some("3".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn windows_no_color_overrides_everything() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Windows,      // Platform
-                true,                   // is_tty
-                true,                   // no_color
-                Some("3"),              // force_color
-                Some("truecolor"),      // colorterm
-                Some("xterm-256color"), // term
-                true,                   // windows_terminal
-                true,                   // windows_vt_enabled
-                None,                   // term_program
-            ),
-            ColorLevel::None
-        );
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.no_color = true;
+        input.force_color = Some("3".to_string());
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+        input.windows_terminal = true;
+        input.windows_vt_enabled = true;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
     }
 
     #[test]
     fn test_legacy_apple_terminal_without_colorterm_defaults_to_ansi256() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,
-                true,                   // is_tty
-                false,                  // no_color
-                None,                   // force_color
-                None,                   // colorterm (Legacy versions leave this blank)
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                true,                   // windows_vt_enabled
-                Some("Apple_Terminal"), // term_program
-            ),
-            ColorLevel::Ansi256
-        );
+        let mut input = input();
+        input.term = Some("xterm-256color".to_string());
+        input.windows_vt_enabled = true;
+        input.term_program = Some("Apple_Terminal".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
     }
 
     #[test]
     fn test_modern_apple_terminal_tahoe_with_colorterm_escalates_to_truecolor() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,
-                true,                   // is_tty
-                false,                  // no_color
-                None,                   // force_color
-                Some("truecolor"),      // colorterm (Tahoe populates this explicitly)
-                Some("xterm-256color"), // term
-                false,                  // windows_terminal
-                true,                   // windows_vt_enabled
-                Some("Apple_Terminal"), // term_program
-            ),
-            ColorLevel::TrueColor
-        );
+        let mut input = input();
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+        input.windows_vt_enabled = true;
+        input.term_program = Some("Apple_Terminal".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
     }
 
     #[test]
     fn test_apple_terminal_honors_dumb_term_restriction() {
-        assert_eq!(
-            detect_color_level_inner(
-                Platform::Unix,
-                true,                   // is_tty
-                false,                  // no_color
-                None,                   // force_color
-                None,                   // colorterm
-                Some("dumb"),           // term explicitly restricts color
-                false,                  // windows_terminal
-                true,                   // windows_vt_enabled
-                Some("Apple_Terminal"), // term_program
-            ),
-            ColorLevel::None
-        );
+        let mut input = input();
+        input.term = Some("dumb".to_string());
+        input.windows_vt_enabled = true;
+        input.term_program = Some("Apple_Terminal".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn force_color_none_wins_on_unix_even_with_truecolor_env() {
+        let mut input = input();
+        input.force_color = Some("0".to_string());
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn force_color_basic_wins_on_unix_even_with_truecolor_env() {
+        let mut input = input();
+        input.force_color = Some("1".to_string());
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
+    }
+
+    #[test]
+    fn force_color_ansi256_wins_on_unix_even_with_truecolor_env() {
+        let mut input = input();
+        input.force_color = Some("2".to_string());
+        input.colorterm = Some("truecolor".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
+    }
+
+    #[test]
+    fn force_color_truecolor_wins_on_unix_even_with_dumb_term() {
+        let mut input = input();
+        input.force_color = Some("3".to_string());
+        input.term = Some("dumb".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+    }
+
+    #[test]
+    fn force_color_overrides_not_tty_on_unix() {
+        let mut input = input();
+        input.is_tty = false;
+        input.force_color = Some("2".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
+    }
+
+    #[test]
+    fn force_color_false_disables_color_on_windows_terminal() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_terminal = true;
+        input.windows_vt_enabled = true;
+        input.force_color = Some("false".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn force_color_on_enables_basic_on_windows_without_vt() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.force_color = Some("on".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
+    }
+
+    #[test]
+    fn force_color_two_enables_ansi256_on_windows_without_vt() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.force_color = Some("2".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
+    }
+
+    #[test]
+    fn force_color_three_enables_truecolor_on_windows_without_vt() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.force_color = Some("3".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+    }
+
+    #[test]
+    fn force_color_unknown_defaults_truecolor_on_windows_without_vt() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.force_color = Some("always".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+    }
+
+    #[test]
+    fn no_color_still_overrides_force_color_on_windows() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.no_color = true;
+        input.force_color = Some("3".to_string());
+        input.windows_terminal = true;
+        input.windows_vt_enabled = true;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn force_color_overrides_not_tty_on_windows() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.is_tty = false;
+        input.force_color = Some("3".to_string());
+        input.windows_vt_enabled = false;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+    }
+
+    #[test]
+    fn force_color_works_on_unix_like_windows_shell() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.unix_like_on_windows = true;
+        input.windows_vt_enabled = false;
+        input.force_color = Some("2".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
+    }
+
+    #[test]
+    fn force_color_false_disables_unix_like_windows_shell() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.unix_like_on_windows = true;
+        input.windows_vt_enabled = true;
+        input.term = Some("xterm-256color".to_string());
+        input.force_color = Some("off".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn force_color_overrides_colorterm_on_unix_like_windows_shell() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.unix_like_on_windows = true;
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+        input.force_color = Some("1".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
+    }
+
+    #[test]
+    fn force_color_empty_string_means_basic_even_on_windows_without_vt() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.force_color = Some("".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
+    }
+
+    #[test]
+    fn force_color_whitespace_is_trimmed_in_detection() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.force_color = Some(" 2 ".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
+    }
+
+    #[test]
+    fn no_color_disables_color_on_unix_with_truecolor_env() {
+        let mut input = input();
+        input.no_color = true;
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_disables_color_on_unix_even_with_force_color() {
+        let mut input = input();
+        input.no_color = true;
+        input.force_color = Some("3".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_disables_color_on_windows_terminal() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.no_color = true;
+        input.windows_terminal = true;
+        input.windows_vt_enabled = true;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_disables_color_on_windows_even_with_force_color() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.no_color = true;
+        input.force_color = Some("3".to_string());
+        input.windows_terminal = true;
+        input.windows_vt_enabled = true;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_disables_color_on_windows_without_vt() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.no_color = true;
+        input.windows_vt_enabled = false;
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_disables_color_on_unix_like_windows_shell() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.unix_like_on_windows = true;
+        input.no_color = true;
+        input.term = Some("xterm-256color".to_string());
+        input.colorterm = Some("truecolor".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_overrides_force_color_on_unix_like_windows_shell() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.unix_like_on_windows = true;
+        input.no_color = true;
+        input.force_color = Some("2".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_overrides_dumb_term_behavior() {
+        let mut input = input();
+        input.no_color = true;
+        input.term = Some("dumb".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_overrides_apple_terminal_truecolor() {
+        let mut input = input();
+        input.no_color = true;
+        input.term_program = Some("Apple_Terminal".to_string());
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn no_color_overrides_not_tty() {
+        let mut input = input();
+        input.no_color = true;
+        input.is_tty = false;
+        input.force_color = Some("3".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
     }
 }
