@@ -60,6 +60,8 @@ pub enum ColorLevel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Platform {
     Windows,
+
+    // Represents UNIX like platform (Unix, Linux, MacOS)
     Unix,
 }
 
