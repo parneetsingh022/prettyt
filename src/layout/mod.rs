@@ -29,13 +29,6 @@
 //! // Prints a framed message to the terminal
 //! println!("{}", panel);
 //! ```
-//!
-//! Expected output:
-//! ```text
-//! ┌──────────────────────┐
-//! │  Hello from prettyt  │
-//! └──────────────────────┘
-//! ```
 use core::fmt;
 
 pub mod panel;
