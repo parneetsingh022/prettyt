@@ -75,8 +75,8 @@ impl<'a, T: Renderable> Renderable for Panel<'a, T> {
     fn measure(&self, max_width: usize) -> SizeHint {
         let inner_hint = self.content.measure(max_width.saturating_sub(2));
         SizeHint {
-            min: inner_hint.min + 2,
-            max: inner_hint.max.map(|m| m + 2),
+            min: (inner_hint.min + 2).min(max_width),
+            max: inner_hint.max.map(|m| (m + 2).min(max_width)),
         }
     }
 
