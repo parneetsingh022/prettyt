@@ -132,6 +132,7 @@ pub fn detect_color_level() -> ColorLevel {
         env::var("TERM").ok().as_deref(),
         env::var_os("WT_SESSION").is_some(),
         enable_virtual_terminal_processing(),
+        env::var("TERM_PROGRAM").ok().as_deref(),
     )
 }
 
@@ -151,6 +152,8 @@ fn detect_color_level_inner(
     // Whether the current Windows console supports ANSI escape codes via
     // ENABLE_VIRTUAL_TERMINAL_PROCESSING.
     windows_vt_enabled: bool,
+
+    term_program: Option<&str>,
 ) -> ColorLevel {
     if no_color {
         return ColorLevel::None;
@@ -187,6 +190,15 @@ fn detect_color_level_inner(
         && (ct.contains("truecolor") || ct.contains("24bit"))
     {
         return ColorLevel::TrueColor;
+    }
+
+    // Explicit Apple Terminal (Terminal.app) Rule:
+    // It leaves COLORTERM blank and supports 256 colors perfectly, but lacks 24-bit RGB support.
+    if let Some("Apple_Terminal") = term_program {
+        // Only return Ansi256 if TERM doesn't explicitly restrict it to "dumb"
+        if term != Some("dumb") {
+            return ColorLevel::Ansi256;
+        }
     }
 
     if let Some(term) = term {
@@ -226,6 +238,7 @@ mod tests {
                 Some("xterm-256color"), // term
                 false,                  // windows_terminal
                 false,                  // windows_vt_enabled
+                None,                   // term_program
             ),
             ColorLevel::None
         );
@@ -243,6 +256,7 @@ mod tests {
                 Some("xterm-256color"), // term
                 false,                  // windows_terminal
                 false,                  // windows_vt_enabled
+                None,                   // term_program
             ),
             ColorLevel::None
         );
@@ -260,6 +274,7 @@ mod tests {
                 Some("xterm-256color"), // term
                 false,                  // windows_terminal
                 false,                  // windows_vt_enabled
+                None,                   // term_program
             ),
             ColorLevel::TrueColor
         );
@@ -277,6 +292,7 @@ mod tests {
                 Some("xterm-256color"), // term
                 false,                  // windows_terminal
                 false,                  // windows_vt_enabled
+                None,                   // term_program
             ),
             ColorLevel::None
         );
@@ -294,6 +310,7 @@ mod tests {
                 Some("xterm-256color"), // term
                 false,                  // windows_terminal
                 false,                  // windows_vt_enabled
+                None,                   // term_program
             ),
             ColorLevel::None
         );
@@ -311,6 +328,7 @@ mod tests {
                 None,           // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::Basic
         );
@@ -328,6 +346,7 @@ mod tests {
                 None,           // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::Ansi256
         );
@@ -345,6 +364,7 @@ mod tests {
                 None,           // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::TrueColor
         );
@@ -362,6 +382,7 @@ mod tests {
                 None,           // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::TrueColor
         );
@@ -379,6 +400,7 @@ mod tests {
                 None,              // term
                 false,             // windows_terminal
                 false,             // windows_vt_enabled
+                None,              // term_program
             ),
             ColorLevel::TrueColor
         );
@@ -396,6 +418,7 @@ mod tests {
                 None,           // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::TrueColor
         );
@@ -413,6 +436,7 @@ mod tests {
                 Some("dumb"),   // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::None
         );
@@ -430,6 +454,7 @@ mod tests {
                 Some("xterm-256color"), // term
                 false,                  // windows_terminal
                 false,                  // windows_vt_enabled
+                None,                   // term_program
             ),
             ColorLevel::Ansi256
         );
@@ -447,6 +472,7 @@ mod tests {
                 Some("xterm"),  // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::Basic
         );
@@ -464,6 +490,7 @@ mod tests {
                 Some("xterm-256color"), // term
                 false,                  // windows_terminal
                 false,                  // windows_vt_enabled
+                None,                   // term_program
             ),
             ColorLevel::Ansi256
         );
@@ -481,6 +508,7 @@ mod tests {
                 None,           // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::Basic
         );
@@ -498,6 +526,7 @@ mod tests {
                 Some("vt100"),  // term
                 false,          // windows_terminal
                 false,          // windows_vt_enabled
+                None,           // term_program
             ),
             ColorLevel::Basic
         );
@@ -515,6 +544,7 @@ mod tests {
                 None,              // term
                 false,             // windows_terminal
                 false,             // windows_vt_enabled
+                None,              // term_program
             ),
             ColorLevel::None
         );
@@ -532,6 +562,7 @@ mod tests {
                 None,              // term
                 false,             // windows_terminal
                 true,              // windows_vt_enabled
+                None,              // term_program
             ),
             ColorLevel::TrueColor
         );
@@ -549,6 +580,7 @@ mod tests {
                 None,              // term
                 true,              // windows_terminal
                 true,              // windows_vt_enabled
+                None,              // term_program
             ),
             ColorLevel::TrueColor
         );
@@ -566,6 +598,7 @@ mod tests {
                 None,              // term
                 false,             // windows_terminal
                 false,             // windows_vt_enabled
+                None,              // term_program
             ),
             ColorLevel::TrueColor
         );
@@ -583,6 +616,61 @@ mod tests {
                 Some("xterm-256color"), // term
                 true,                   // windows_terminal
                 true,                   // windows_vt_enabled
+                None,                   // term_program
+            ),
+            ColorLevel::None
+        );
+    }
+
+    #[test]
+    fn test_legacy_apple_terminal_without_colorterm_defaults_to_ansi256() {
+        assert_eq!(
+            detect_color_level_inner(
+                Platform::Unix,
+                true,                   // is_tty
+                false,                  // no_color
+                None,                   // force_color
+                None,                   // colorterm (Legacy versions leave this blank)
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                true,                   // windows_vt_enabled
+                Some("Apple_Terminal"), // term_program
+            ),
+            ColorLevel::Ansi256
+        );
+    }
+
+    #[test]
+    fn test_modern_apple_terminal_tahoe_with_colorterm_escalates_to_truecolor() {
+        assert_eq!(
+            detect_color_level_inner(
+                Platform::Unix,
+                true,                   // is_tty
+                false,                  // no_color
+                None,                   // force_color
+                Some("truecolor"),      // colorterm (Tahoe populates this explicitly)
+                Some("xterm-256color"), // term
+                false,                  // windows_terminal
+                true,                   // windows_vt_enabled
+                Some("Apple_Terminal"), // term_program
+            ),
+            ColorLevel::TrueColor
+        );
+    }
+
+    #[test]
+    fn test_apple_terminal_honors_dumb_term_restriction() {
+        assert_eq!(
+            detect_color_level_inner(
+                Platform::Unix,
+                true,                   // is_tty
+                false,                  // no_color
+                None,                   // force_color
+                None,                   // colorterm
+                Some("dumb"),           // term explicitly restricts color
+                false,                  // windows_terminal
+                true,                   // windows_vt_enabled
+                Some("Apple_Terminal"), // term_program
             ),
             ColorLevel::None
         );
