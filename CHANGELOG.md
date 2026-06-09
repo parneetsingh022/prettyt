@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file. This projec
 
 - Fixed color detection on Unix-like terminals running on Windows (e.g. Git Bash, MSYS2, MinTTY, and Cygwin), where ANSI color support could be incorrectly disabled when Windows Virtual Terminal Processing was unavailable.
 
-- - Fixed `FORCE_COLOR` handling for empty and unrecognized values. Empty values (e.g. `FORCE_COLOR=`) now correctly enable Basic ANSI colors, and unrecognized non-empty values now default to Basic color support instead of disabling colors.
+- Fixed `FORCE_COLOR` handling for empty and unrecognized values. Empty values (e.g. `FORCE_COLOR=`) now correctly enable Basic ANSI colors, and unrecognized non-empty values now default to Basic color support instead of disabling colors.
 
 ## [0.3.0] - 2026-06-08
 
