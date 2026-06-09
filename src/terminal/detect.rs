@@ -127,25 +127,39 @@ fn stdout_is_tty() -> bool {
 }
 
 #[cfg(windows)]
-fn unix_like_terminal_on_windows() -> bool {
-    let is_msys_like = env::var("MSYSTEM")
+fn is_msys_terminal() -> bool {
+    env::var("MSYSTEM")
         .map(|v| {
             let v = v.to_ascii_uppercase();
             v.contains("MINGW") || v.contains("MSYS") || v.contains("CLANG")
         })
-        .unwrap_or(false);
-
-    let is_cygwin_like = env::var("TERM")
-        .map(|v| v.to_ascii_lowercase().contains("cygwin"))
-        .unwrap_or(false);
-
-    let is_mintty_like = env::var_os("MINTTY_PID").is_some();
-
-    is_msys_like || is_cygwin_like || is_mintty_like
+        .unwrap_or(false)
 }
 
 #[cfg(not(windows))]
-fn unix_like_terminal_on_windows() -> bool {
+fn is_msys_terminal() -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn is_cygwin_terminal() -> bool {
+    env::var("TERM")
+        .map(|v| v.to_ascii_lowercase().contains("cygwin"))
+        .unwrap_or(false)
+}
+
+#[cfg(not(windows))]
+fn is_cygwin_terminal() -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn is_mintty_terminal() -> bool {
+    env::var_os("MINTTY_PID").is_some()
+}
+
+#[cfg(not(windows))]
+fn is_mintty_terminal() -> bool {
     false
 }
 
@@ -160,7 +174,11 @@ struct ColorDetectionInput {
     windows_terminal: bool,
     windows_vt_enabled: bool,
     term_program: Option<String>,
-    unix_like_on_windows: bool,
+
+    // Windows-specific terminal hints
+    is_msys: bool,
+    is_cygwin: bool,
+    is_mintty: bool,
 }
 
 /// Returns the color level
@@ -175,11 +193,16 @@ pub fn detect_color_level() -> ColorLevel {
         windows_terminal: env::var_os("WT_SESSION").is_some(),
         windows_vt_enabled: enable_virtual_terminal_processing(),
         term_program: env::var("TERM_PROGRAM").ok(),
-        unix_like_on_windows: unix_like_terminal_on_windows(),
+
+        is_msys: is_msys_terminal(),
+        is_cygwin: is_cygwin_terminal(),
+        is_mintty: is_mintty_terminal(),
     })
 }
 
 fn detect_color_level_inner(input: ColorDetectionInput) -> ColorLevel {
+    let is_unix_like_on_windows = input.is_msys || input.is_cygwin || input.is_mintty;
+
     if input.no_color {
         return ColorLevel::None;
     }
@@ -192,9 +215,7 @@ fn detect_color_level_inner(input: ColorDetectionInput) -> ColorLevel {
         return ColorLevel::None;
     }
 
-    if input.platform == Platform::Windows
-        && !input.windows_vt_enabled
-        && !input.unix_like_on_windows
+    if input.platform == Platform::Windows && !input.windows_vt_enabled && !is_unix_like_on_windows
     {
         return ColorLevel::None;
     }
@@ -233,6 +254,27 @@ fn detect_color_level_inner(input: ColorDetectionInput) -> ColorLevel {
         if term.contains("256color") {
             return ColorLevel::Ansi256;
         }
+    }
+
+    if input.is_mintty {
+        return ColorLevel::Ansi256;
+    }
+
+    if let Some(term) = input.term.as_deref() {
+        let term = term.to_ascii_lowercase();
+
+        if term.contains("xterm")
+            || term.contains("screen")
+            || term.contains("tmux")
+            || term.contains("vt100")
+            || term.contains("rxvt")
+        {
+            return ColorLevel::Basic;
+        }
+    }
+
+    if is_unix_like_on_windows {
+        return ColorLevel::Basic;
     }
 
     // On Windows, if VT processing is available, assume TrueColor.
@@ -342,7 +384,9 @@ mod tests {
             windows_terminal: false,
             windows_vt_enabled: false,
             term_program: None,
-            unix_like_on_windows: false,
+            is_msys: false,
+            is_cygwin: false,
+            is_mintty: false,
         }
     }
 
@@ -700,7 +744,7 @@ mod tests {
     fn force_color_works_on_unix_like_windows_shell() {
         let mut input = input();
         input.platform = Platform::Windows;
-        input.unix_like_on_windows = true;
+        input.is_msys = true;
         input.windows_vt_enabled = false;
         input.force_color = Some("2".to_string());
 
@@ -711,7 +755,7 @@ mod tests {
     fn force_color_false_disables_unix_like_windows_shell() {
         let mut input = input();
         input.platform = Platform::Windows;
-        input.unix_like_on_windows = true;
+        input.is_msys = true;
         input.windows_vt_enabled = true;
         input.term = Some("xterm-256color".to_string());
         input.force_color = Some("off".to_string());
@@ -723,7 +767,7 @@ mod tests {
     fn force_color_overrides_colorterm_on_unix_like_windows_shell() {
         let mut input = input();
         input.platform = Platform::Windows;
-        input.unix_like_on_windows = true;
+        input.is_msys = true;
         input.colorterm = Some("truecolor".to_string());
         input.term = Some("xterm-256color".to_string());
         input.force_color = Some("1".to_string());
@@ -807,7 +851,7 @@ mod tests {
     fn no_color_disables_color_on_unix_like_windows_shell() {
         let mut input = input();
         input.platform = Platform::Windows;
-        input.unix_like_on_windows = true;
+        input.is_msys = true;
         input.no_color = true;
         input.term = Some("xterm-256color".to_string());
         input.colorterm = Some("truecolor".to_string());
@@ -819,7 +863,7 @@ mod tests {
     fn no_color_overrides_force_color_on_unix_like_windows_shell() {
         let mut input = input();
         input.platform = Platform::Windows;
-        input.unix_like_on_windows = true;
+        input.is_msys = true;
         input.no_color = true;
         input.force_color = Some("2".to_string());
         input.term = Some("xterm-256color".to_string());
@@ -855,5 +899,137 @@ mod tests {
         input.force_color = Some("3".to_string());
 
         assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn msys_without_vt_is_allowed_but_only_basic() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.is_msys = true;
+        input.term = Some("xterm".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
+    }
+
+    #[test]
+    fn cygwin_without_vt_is_allowed_but_only_basic() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.is_cygwin = true;
+        input.term = Some("cygwin".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
+    }
+
+    #[test]
+    fn mintty_without_vt_is_allowed_as_ansi256() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.is_mintty = true;
+        input.term = Some("xterm".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
+    }
+
+    #[test]
+    fn mintty_with_256color_term_is_ansi256() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.is_mintty = true;
+        input.term = Some("xterm-256color".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Ansi256);
+    }
+
+    #[test]
+    fn mintty_with_truecolor_colorterm_is_truecolor() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.is_mintty = true;
+        input.colorterm = Some("truecolor".to_string());
+        input.term = Some("xterm".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+    }
+
+    #[test]
+    fn mintty_with_24bit_colorterm_is_truecolor() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.is_mintty = true;
+        input.colorterm = Some("24bit".to_string());
+        input.term = Some("xterm".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+    }
+
+    #[test]
+    fn mintty_with_truecolor_term_is_truecolor() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.is_mintty = true;
+        input.term = Some("xterm-truecolor".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+    }
+
+    #[test]
+    fn term_dumb_overrides_mintty() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.is_mintty = true;
+        input.term = Some("dumb".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn term_xterm_on_windows_msys_without_mintty_is_basic() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.is_msys = true;
+        input.is_mintty = false;
+        input.windows_terminal = false;
+        input.term = Some("xterm".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
+    }
+
+    #[test]
+    fn windows_without_vt_and_without_unix_like_shell_is_none() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_vt_enabled = false;
+        input.is_msys = false;
+        input.is_cygwin = false;
+        input.is_mintty = false;
+        input.term = Some("xterm".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::None);
+    }
+
+    #[test]
+    fn windows_terminal_beats_basic_term() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.windows_terminal = true;
+        input.windows_vt_enabled = true;
+        input.term = Some("xterm".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+    }
+
+    #[test]
+    fn force_color_overrides_mintty() {
+        let mut input = input();
+        input.platform = Platform::Windows;
+        input.is_mintty = true;
+        input.term = Some("xterm-256color".to_string());
+        input.force_color = Some("1".to_string());
+
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
     }
 }
