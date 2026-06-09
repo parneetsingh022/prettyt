@@ -293,7 +293,7 @@ fn parse_force_color(value: &str) -> ColorLevel {
         "" | "1" | "true" | "yes" | "on" => ColorLevel::Basic,
         "2" => ColorLevel::Ansi256,
         "3" => ColorLevel::TrueColor,
-        _ => ColorLevel::TrueColor,
+        _ => ColorLevel::Basic,
     }
 }
 
@@ -322,13 +322,9 @@ fn parse_force_color_three_returns_truecolor() {
 }
 
 #[test]
-fn parse_force_color_unknown_values_default_to_truecolor() {
+fn parse_force_color_unknown_values_default_to_basic() {
     for value in ["4", "always", "maybe", "random", "256", "truecolor"] {
-        assert_eq!(
-            parse_force_color(value),
-            ColorLevel::TrueColor,
-            "value={value}"
-        );
+        assert_eq!(parse_force_color(value), ColorLevel::Basic, "value={value}");
     }
 }
 
@@ -359,7 +355,7 @@ fn parse_force_color_trims_whitespace() {
         (" on ", ColorLevel::Basic),
         (" 2 ", ColorLevel::Ansi256),
         (" 3 ", ColorLevel::TrueColor),
-        (" random ", ColorLevel::TrueColor),
+        (" random ", ColorLevel::Basic),
     ];
 
     for (value, expected) in cases {
@@ -467,11 +463,11 @@ mod tests {
     }
 
     #[test]
-    fn unknown_force_color_returns_truecolor() {
+    fn unknown_force_color_returns_basic() {
         let mut input = input();
         input.force_color = Some("unknown".to_string());
 
-        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
     }
 
     #[test]
@@ -708,13 +704,13 @@ mod tests {
     }
 
     #[test]
-    fn force_color_unknown_defaults_truecolor_on_windows_without_vt() {
+    fn force_color_unknown_defaults_basic_on_windows_without_vt() {
         let mut input = input();
         input.platform = Platform::Windows;
         input.windows_vt_enabled = false;
         input.force_color = Some("always".to_string());
 
-        assert_eq!(detect_color_level_inner(input), ColorLevel::TrueColor);
+        assert_eq!(detect_color_level_inner(input), ColorLevel::Basic);
     }
 
     #[test]
